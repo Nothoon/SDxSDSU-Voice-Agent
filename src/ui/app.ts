@@ -9,7 +9,7 @@ import {
   createVoiceController,
   type ThreadVoiceController,
 } from "../voice/browser/controller.js";
-import { nextIdea, validateCard, formatTime, canShortcut } from "./model.js";
+import { focusAfterCoverage, nextIdea, validateCard, formatTime, canShortcut } from "./model.js";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
   document.getElementById(id) as T;
@@ -69,7 +69,18 @@ const sessionApi = <T = SessionState>(action: string, body: unknown = {}) =>
 function accept(next: SessionState) {
   if (state && next.id !== state.id) return;
   if (state && next.stateRevision < state.stateRevision) return;
+  const nextFocus = state ? focusAfterCoverage(state, next, focusId) : focusId;
+  const invalidateHint = state &&
+    (next.transcriptRevision !== state.transcriptRevision || nextFocus !== focusId);
   state = next;
+  focusId = nextFocus;
+  if (invalidateHint) {
+    cancel();
+    delivered = null;
+    hint = "";
+    playback = "";
+    message = "";
+  }
   clockAt = Date.now();
 }
 function cancel() {
@@ -144,7 +155,7 @@ function speakingView() {
     (c) => state?.coverage[c.id]?.status === "covered",
   ).length;
   const paused = state?.lifecycle === "paused" || transportStopped;
-  return `<div class="speaking-heading"><div><span class="eyebrow">03 / YOUR MOMENT</span><h1>Take the floor.</h1></div><div class="session-badge"><i class="${paused ? "paused" : ""}"></i>${paused ? "Paused" : health?.voice.simulated ? "Practice session" : "Listening"}<span id="timer">${formatTime(state?.elapsedMs || 0)}</span></div></div>${!streamOk ? '<p class="alert" role="status">Reconnecting to your session. Hints use the last confirmed state.</p>' : ""}${state?.trackingStatus !== "ok" ? '<p class="notice">Tracking needs a moment. Your ideas are safe; select one below for a hint.</p>' : ""}<div class="speaking-grid"><section class="speaking-main"><div class="focus-card"><div class="focus-top"><span>${paused ? "TAKE A BREATH" : hint ? "YOUR HINT" : "CURRENT IDEA"}</span><span>${current ? String(ordered().findIndex((c) => c.id === current.id) + 1).padStart(2, "0") : "—"} / ${String(cards.length).padStart(2, "0")}</span></div><h2 aria-live="polite">${paused ? "A moment to pause." : esc(hint || current?.title || "All points covered.")}</h2><p>${paused ? "Resume when you’re ready. Your place is saved." : hint ? esc(current?.title || "Your thread") : esc(current?.meaning || "You’ve shared every idea in your outline.")}</p><div class="wave" aria-hidden="true">${Array.from({ length: 23 }, (_, i) => `<i style="--height:${[10, 18, 8, 26, 14, 32, 20][i % 7]}px"></i>`).join("")}</div><div class="playback" role="status">${esc(playback || "Your voice leads. Ask for a hint when you need one.")}</div></div><div class="speaking-controls">${button("hint", "Hint <kbd>H</kbd>", "primary", busy || cueBusy || !listening() || !focusId)}${button("next", "Next idea <span>→</span>", "secondary", busy || cueBusy || !listening())}${button("more", "More detail", "text", busy || cueBusy || !listening() || !delivered?.cardId)}</div><div class="next-preview"><span>UP NEXT</span><strong>${esc(next?.card?.title || "End of your outline")}</strong><small>Next idea moves forward without marking this one covered.</small></div>${health?.voice.simulated ? `<form id="practice-form" class="practice-input"><label for="practice">Practice speech <span>SIMULATED INPUT · no microphone</span></label><div><input id="practice" name="speech" placeholder="Type what you would say…" required maxlength="3000" ${paused ? "disabled" : ""}><button class="secondary" ${paused || busy ? "disabled" : ""}>Send</button></div><p>Hints use approved text. Audio, if enabled, is a placeholder tone.</p></form>` : ""}<div class="lifecycle-controls">${button(paused ? "resume" : "pause", paused ? "▶ Resume" : "Ⅱ Pause", "secondary", busy || transportStopped)}${button("end", "End session", "text danger", busy)}${button("stop-audio", "Stop hint audio", "text", !listening())}</div></section><aside class="outline-panel"><div class="section-heading"><h2>Your thread</h2><span>${covered}/${cards.length}</span></div><div class="progress"><span style="width:${cards.length ? (covered / cards.length) * 100 : 0}%"></span></div><p class="fine">Select an idea to revisit it. Coverage follows what you say.</p><ol>${ordered()
+  return `<div class="speaking-heading"><div><span class="eyebrow">03 / YOUR MOMENT</span><h1>Take the floor.</h1></div><div class="session-badge"><i class="${paused ? "paused" : ""}"></i>${paused ? "Paused" : health?.voice.simulated ? "Practice session" : "Listening"}<span id="timer">${formatTime(state?.elapsedMs || 0)}</span></div></div>${!streamOk ? '<p class="alert" role="status">Reconnecting to your session. Hints use the last confirmed state.</p>' : ""}${state?.trackingStatus !== "ok" ? '<p class="notice">Tracking needs a moment. Your ideas are safe; select one below for a hint.</p>' : ""}<div class="speaking-grid"><section class="speaking-main"><div class="focus-card"><div class="focus-top"><span>${paused ? "TAKE A BREATH" : hint ? "YOUR HINT" : "CURRENT IDEA"}</span><span>${current ? String(ordered().findIndex((c) => c.id === current.id) + 1).padStart(2, "0") : "—"} / ${String(cards.length).padStart(2, "0")}</span></div><h2 aria-live="polite">${paused ? "A moment to pause." : esc(hint || current?.title || "All points covered.")}</h2><p>${paused ? "Resume when you’re ready. Your place is saved." : hint ? esc(current?.title || "Your thread") : esc(current?.meaning || "You’ve shared every idea in your outline.")}</p><div class="wave" aria-hidden="true">${Array.from({ length: 23 }, (_, i) => `<i style="--height:${[10, 18, 8, 26, 14, 32, 20][i % 7]}px"></i>`).join("")}</div><div class="playback" role="status">${esc(playback || "Your voice leads. Ask for a hint when you need one.")}</div></div><div class="speaking-controls">${button("hint", "Hint <kbd>H</kbd>", "primary", busy || cueBusy || !listening() || !focusId)}${button("next", "Next idea <span>→</span>", "secondary", busy || cueBusy || !listening())}${button("more", "More detail", "text", busy || cueBusy || !listening() || !delivered?.cardId)}</div><div class="next-preview"><span>UP NEXT</span><strong>${esc(next?.card?.title || "End of your outline")}</strong><small>Moves on automatically when this idea is covered. Use Next idea to skip ahead.</small></div>${health?.voice.simulated ? `<form id="practice-form" class="practice-input"><label for="practice">Practice speech <span>SIMULATED INPUT · no microphone</span></label><div><input id="practice" name="speech" placeholder="Type what you would say…" required maxlength="3000" ${paused ? "disabled" : ""}><button class="secondary" ${paused || busy ? "disabled" : ""}>Send</button></div><p>Hints use approved text. Audio, if enabled, is a placeholder tone.</p></form>` : ""}<div class="lifecycle-controls">${button(paused ? "resume" : "pause", paused ? "▶ Resume" : "Ⅱ Pause", "secondary", busy || transportStopped)}${button("end", "End session", "text danger", busy)}${button("stop-audio", "Stop hint audio", "text", !listening())}</div></section><aside class="outline-panel"><div class="section-heading"><h2>Your thread</h2><span>${covered}/${cards.length}</span></div><div class="progress"><span style="width:${cards.length ? (covered / cards.length) * 100 : 0}%"></span></div><p class="fine">Select an idea to revisit it. Coverage follows what you say.</p><ol>${ordered()
     .map((c, i) => {
       const status = state?.coverage[c.id]?.status || "uncovered";
       return `<li><button data-action="select:${c.id}" class="outline-choice ${focusId === c.id ? "active" : ""}" aria-pressed="${focusId === c.id}" ${busy || !listening() ? "disabled" : ""}><span class="coverage-dot ${status}">${status === "covered" ? "✓" : i + 1}</span><span><strong>${esc(c.title)}</strong><small>${status === "covered" ? "Covered" : status === "partial" ? "In progress" : c.mustMention ? "Must mention" : "Not covered yet"}</small></span></button></li>`;
@@ -229,18 +240,7 @@ function subscribe(id: string) {
     try {
       const update = JSON.parse(event.data) as SessionEvent;
       if ("state" in update && state?.id === id) {
-        const previousRevision = state.transcriptRevision;
         accept(update.state);
-        if (state.transcriptRevision !== previousRevision) {
-          cancel();
-          delivered = null;
-          hint = "";
-          if (!state.selectedCardId)
-            focusId =
-              state.outline.find(
-                (c) => state!.coverage[c.id]?.status !== "covered",
-              )?.id || focusId;
-        }
         render();
       }
       if (update.type === "error") fail(update.message);

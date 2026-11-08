@@ -23,19 +23,19 @@ VOICE_PROVIDER=mock COVERAGE_PROVIDER=mock npm start
 
 1. **Your ideas:** Load a sample or add/edit/reorder/delete cards. Each has a title, meaning, short approved hint, fuller reminder, and must-mention flag. Choose a duration and Review setup.
 2. **Your setup:** Review session mode. Optional audio hints have an output selector, preview, and an explicit confirmation that the preview was heard. Text hints work with audio off. Live transcription still uses the microphone with audio hints off.
-3. **Your moment:** Hint reminds the current idea, More expands the last presented hint, and Next Idea selects the next later unfinished card and requests its approved short hint. Manual selection revisits any card without changing coverage. Pause/Resume and End call both the backend and voice lifecycle. The recap uses server counts and coverage.
+3. **Your moment:** Hint reminds the current idea, More expands the last presented hint, and Next Idea selects the next later unfinished card and requests its approved short hint. When the focused idea becomes covered, the screen automatically advances to the next unfinished idea in outline order, skipping covered ideas and returning to earlier missed ideas if needed. Completing every idea shows “All points covered.” This visual advancement clears stale hints without requesting or playing audio. Partial coverage preserves focus; manual selection can still revisit already covered ideas. Pause/Resume and End call both the backend and voice lifecycle. The recap uses server counts and coverage.
 
 Keyboard shortcuts: H or C for Hint, M for More, Right Arrow for Next Idea. Shortcuts ignore editing controls, links, buttons, dialogs, held keys, and modifier combinations.
 
 ## Integration boundaries
 
 - `src/ui/app.ts`: Client rendering, approved outline edits, HTTP commands, SSE subscription, user intent/cancellation, device settings, and recap.
-- `src/ui/model.ts`: Card validation, forward-only Next selection, shortcut eligibility, and time formatting.
+- `src/ui/model.ts`: Card validation, automatic focus advancement, forward-only Next selection, shortcut eligibility, and time formatting.
 - `src/ui/routes.ts`: Allowlisted product HTML/CSS/bundle routes only. `src/server/app.ts` adds these to the existing route list; no backend session policy is replaced.
 - Shared contracts remain in `src/shared/types.ts`. Voice input, provider calls, echo handling, and playback stay in Vineet's controller.
 - The UI consumes real `/api/sessions` lifecycle routes and `/events`; state revisions cannot move backward. Stale hint results after new intent, new finalized speech, Pause, End, or session changes are discarded. Pause/End stay available during hint requests.
 - Next uses the existing `/select` then `/cue` routes. Focus is separate from coverage in the UI; selection does not claim the speaker covered a point. This is a compatibility implementation until Nathan provides an authoritative active-idea/Next command. The backend's `selectedCardId` persists and manual focus is not automatically inferred from reordered speech.
-- More is cleared after manual focus changes or new speech, so it cannot unexpectedly expand an earlier card.
+- More is cleared after automatic or manual focus changes or new speech, so it cannot unexpectedly expand an earlier card.
 - On microphone startup failure, the UI stops input and attempts to pause the backend. If a lifecycle request fails, input is still stopped and End can be retried. Text hints remain visible when audio fails.
 - End closes the event stream and mic/controller; the server clears transcript buffers. The outline stays in browser memory for another attempt. Refresh resets the frontend. No persistence was added.
 

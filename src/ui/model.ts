@@ -1,5 +1,24 @@
 import type { IdeaCard, SessionState } from "../shared/types.js";
 
+export function focusAfterCoverage(
+  previous: SessionState,
+  next: SessionState,
+  currentId: string | null,
+): string | null {
+  // Advance only on a new completion. Explicitly revisiting an already covered
+  // idea stays possible, and partial/unrelated updates preserve the speaker's place.
+  if (
+    !currentId ||
+    previous.coverage[currentId]?.status === "covered" ||
+    next.coverage[currentId]?.status !== "covered"
+  ) return currentId;
+
+  return nextIdea(next, currentId).card?.id ??
+    [...next.outline]
+      .sort((a, b) => a.order - b.order)
+      .find((card) => next.coverage[card.id]?.status !== "covered")?.id ?? null;
+}
+
 export function nextIdea(state: SessionState, currentId: string | null) {
   const cards = [...state.outline].sort((a, b) => a.order - b.order);
   const index = cards.findIndex((c) => c.id === currentId);
