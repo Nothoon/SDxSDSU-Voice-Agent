@@ -2,15 +2,18 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { CoverageStatus, CueLevel, ProviderName, ProviderStatus } from "../shared/types.js";
 import type { CoverageAdapter } from "./coverage/adapter.js";
 import { demoOutline } from "./fixtures/outline.js";
+import { STREAMING, type Route } from "./http.js";
 import { Session, SessionError } from "./session.js";
-
-type Handler = (ctx: { req: IncomingMessage; res: ServerResponse; params: string[]; body: any }) => unknown;
+import { MockVoiceProvider } from "./voice/mock.js";
+import type { VoiceProvider } from "./voice/provider.js";
+import { voiceRoutes } from "./voice/routes.js";
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_SESSIONS = 50;
 
-export function createApp(options: { adapter: () => CoverageAdapter; allowedOrigin?: string }) {
+export function createApp(options: { adapter: () => CoverageAdapter; voice?: VoiceProvider; allowedOrigin?: string }) {
   const sessions = new Map<string, Session>();
+  const voice = options.voice ?? new MockVoiceProvider();
 
   const get = (id: string) => {
     const session = sessions.get(id);
@@ -18,8 +21,12 @@ export function createApp(options: { adapter: () => CoverageAdapter; allowedOrig
     return session;
   };
 
-  const routes: Array<[string, RegExp, Handler]> = [
-    ["GET", /^\/api\/health$/, () => ({ ok: true, coverage: options.adapter().name })],
+  const routes: Route[] = [
+    ["GET", /^\/api\/health$/, () => ({
+      ok: true,
+      coverage: options.adapter().name,
+      voice: { provider: voice.name, simulated: voice.simulated, stt: voice.sttAvailable },
+    })],
     ["GET", /^\/api\/fixtures\/outline$/, () => ({ outline: demoOutline })],
 
     ["POST", /^\/api\/sessions$/, ({ body }) => {
@@ -95,6 +102,7 @@ export function createApp(options: { adapter: () => CoverageAdapter; allowedOrig
       });
       return STREAMING;
     }],
+    ...voiceRoutes(get, voice),
   ];
 
   const server = createServer(async (req, res) => {
@@ -125,8 +133,6 @@ export function createApp(options: { adapter: () => CoverageAdapter; allowedOrig
 
   return { server, sessions };
 }
-
-const STREAMING = Symbol("streaming");
 
 function json(res: ServerResponse, status: number, body: unknown) {
   if (res.headersSent) return void res.end();

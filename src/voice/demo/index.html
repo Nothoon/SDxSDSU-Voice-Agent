@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thread Voice Test</title>
+<style>
+  :root { --bg: #f7f7f5; --fg: #1d1d1b; --muted: #6b6b66; --line: #ddddd6; --card: #fff; --ok: #1f7a4d; --warn: #9a6200; --bad: #b3261e; --accent: #2d5bd7; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecebe6; --muted: #9b9a94; --line: #34332f; --card: #1f1f1d; --ok: #5cc28f; --warn: #e0a84a; --bad: #f08a80; --accent: #7fa2ff; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .note { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .banner { border: 1px solid var(--warn); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 13px; display: none; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: default; }
+  select, input[type=text] { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); min-width: 0; }
+  input[type=text] { flex: 1 1 240px; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); }
+  .connected, .ok, .covered { color: var(--ok); border-color: var(--ok); }
+  .degraded, .partial, .waiting { color: var(--warn); border-color: var(--warn); }
+  .disconnected, .uncovered, .unavailable { color: var(--muted); }
+  .meter { width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .meter > div { height: 100%; width: 0; background: var(--ok); transition: width 50ms linear; }
+  .cue { font-size: 22px; font-weight: 600; margin: 6px 0; min-height: 1.4em; }
+  .partialText { color: var(--muted); font-style: italic; min-height: 1.4em; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td { padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+  ol { margin: 0; padding-left: 20px; max-height: 180px; overflow: auto; }
+  #log { font: 12px/1.5 ui-monospace, monospace; max-height: 220px; overflow: auto; white-space: pre-wrap; margin: 0; }
+  .speaking { color: var(--ok); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Thread voice test page</h1>
+  <p class="note">Developer harness for the voice adapter (mic → transcript → backend, cue audio playback). Not the product UI. Uses the README demo outline.</p>
+  <div class="banner" id="simBanner"></div>
+
+  <section>
+    <h2>1 · Session</h2>
+    <div class="row">
+      <button class="primary" id="create">Create &amp; approve demo session</button>
+      <button id="prepare" disabled>Prepare cue audio</button>
+      <span id="sessionInfo" class="note" style="margin:0"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Earbud check</h2>
+    <div class="row">
+      <select id="output"><option value="">System default output</option></select>
+      <button id="refreshOutputs">Refresh devices</button>
+      <button id="preview">Preview cue</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>3 · Speak</h2>
+    <div class="row">
+      <label><input type="checkbox" id="simulated"> Simulated input (typed, no mic)</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="primary" id="start" disabled>Start</button>
+      <button id="pause" disabled>Pause</button>
+      <button id="resume" disabled>Resume</button>
+      <button id="end" disabled>End</button>
+      <span>STT <span class="pill disconnected" id="stt">disconnected</span></span>
+      <span>TTS <span class="pill disconnected" id="tts">disconnected</span></span>
+      <span>Tracking <span class="pill" id="tracking">–</span></span>
+      <div class="meter" title="mic level"><div id="meter"></div></div>
+      <span id="speaking">quiet</span>
+    </div>
+    <div class="row" id="simRow" style="margin-top:10px; display:none">
+      <input type="text" id="simText" placeholder="Type what the speaker says, press Enter (SIMULATED)">
+      <button id="simSend">Say</button>
+    </div>
+    <p class="partialText" id="partial"></p>
+  </section>
+
+  <section>
+    <h2>4 · Cue</h2>
+    <div class="row">
+      <button class="primary" id="cue" disabled>Cue (Space)</button>
+      <button id="more" disabled>More (M)</button>
+      <button id="stopAudio">Stop audio</button>
+      <span class="pill" id="playback">idle</span>
+    </div>
+    <div class="cue" id="cueText"></div>
+  </section>
+
+  <section>
+    <h2>Coverage</h2>
+    <table id="coverage"></table>
+  </section>
+
+  <section>
+    <h2>Final transcript (session memory only)</h2>
+    <ol id="finals"></ol>
+  </section>
+
+  <section>
+    <h2>Log</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

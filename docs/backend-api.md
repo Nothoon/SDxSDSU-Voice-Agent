@@ -33,7 +33,7 @@ All under `/api`. Errors return `{ "error": string }` with 400, 404, or 409.
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| GET | `/health` | | `{ ok, coverage }` |
+| GET | `/health` | | `{ ok, coverage, voice: { provider, simulated, stt } }` |
 | GET | `/fixtures/outline` | | `{ outline: IdeaCard[] }` (README example) |
 | POST | `/sessions` | `{ outline?, targetDurationSec? }` | `SessionState` |
 | GET | `/sessions/:id` | | `SessionState` |
@@ -48,6 +48,10 @@ All under `/api`. Errors return `{ "error": string }` with 400, 404, or 409.
 | GET | `/sessions/:id/recap` | | `SessionRecap` |
 | GET | `/sessions/:id/transcript` | | `{ segments }` (debug view only) |
 | GET | `/sessions/:id/events` | | SSE stream of `SessionEvent` |
+| POST | `/sessions/:id/voice/stt-token` | | `{ token, wsUrl, simulated }` single-use ElevenLabs STT token ([voice.md](voice.md)) |
+| POST | `/sessions/:id/voice/prepare` | | `{ prepared, failed, simulated }` pre-synthesizes approved cues |
+| GET | `/sessions/:id/voice/cue-audio?cardId&level` | | Audio for an approved cue |
+| GET | `/voice/preview-audio` | | Audio for a fixed earbud-check phrase |
 
 Lifecycle: `draft → ready → listening ↔ paused → ended`.
 
@@ -67,4 +71,4 @@ Lifecycle: `draft → ready → listening ↔ paused → ended`.
 ## Integration notes
 
 - **Ali:** subscribe to `/events`, render `state.coverage`, `state.lastCue`, `trackingStatus`, and `providers`. Use `/select` and `/coverage` for the manual card selector.
-- **Vineet:** POST finalized segments to `/segments` and report STT/TTS health with `/providers`. `CueResponse.audioUrl` is unset; cue audio caching belongs to the voice adapter and is keyed by `cardId` + `level` + text. Echo exclusion (not sending assistant playback as speaker segments) happens in the voice adapter. The ElevenLabs credential relay route is not built yet.
+- **Vineet:** the voice adapter POSTs segments to `/segments` and reports STT/TTS health with `/providers`. `CueResponse.audioUrl` stays unset; the voice controller builds the `/voice/cue-audio` URL from `cardId` + `level` + text. Echo exclusion happens in the voice adapter. See [voice.md](voice.md).
