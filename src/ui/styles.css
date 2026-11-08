@@ -339,10 +339,21 @@ main {
   font-size: 11px;
   margin-left: 7px;
 }
-.section-heading > button {
+.section-heading > button,
+.heading-actions > button {
   font-size: 11px;
   min-height: 35px;
   padding: 8px 12px;
+}
+.heading-actions,
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.empty-actions {
+  justify-content: center;
 }
 .idea-list {
   display: grid;
@@ -1076,9 +1087,46 @@ dialog label > span {
   font-size: 12px;
   padding: 10px 13px;
 }
-#card-error {
+#card-error,
+#import-error {
   color: #a14439;
   font-size: 12px;
+}
+.dialog-lede {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: -12px 0 20px;
+}
+.file-drop {
+  border: 1.5px dashed #c5d4d2;
+  border-radius: 12px;
+  padding: 16px;
+  background: #f8fbfa;
+}
+.file-drop span {
+  display: block;
+  margin-top: 2px;
+}
+dialog .file-drop input[type="file"] {
+  border: 0;
+  padding: 0;
+  margin-top: 12px;
+  background: transparent;
+}
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  margin: 2px 0 14px;
+}
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
 }
 .loading {
   padding: 50px;

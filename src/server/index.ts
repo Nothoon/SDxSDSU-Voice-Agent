@@ -2,6 +2,9 @@ import { createApp } from "./app.js";
 import type { CoverageAdapter } from "./coverage/adapter.js";
 import { ClaudeCoverageAdapter } from "./coverage/claude.js";
 import { MockCoverageAdapter } from "./coverage/mock.js";
+import { ClaudeOutlineGenerator } from "./outline/claude.js";
+import type { OutlineGenerator } from "./outline/generator.js";
+import { MockOutlineGenerator } from "./outline/mock.js";
 import { ElevenLabsVoiceProvider } from "./voice/elevenlabs.js";
 import { MockVoiceProvider } from "./voice/mock.js";
 import type { VoiceProvider } from "./voice/provider.js";
@@ -39,11 +42,26 @@ if (voiceProvider === "elevenlabs") {
   throw new Error(`Unknown VOICE_PROVIDER "${voiceProvider}" (expected elevenlabs or mock)`);
 }
 
-const { server } = createApp({ adapter: () => adapter, voice, allowedOrigin: process.env.ALLOWED_ORIGIN });
+// Slide/doc import defaults to Claude when it is configured for coverage or a key is set,
+// otherwise the SIMULATED heuristic splitter.
+const outlineProvider =
+  process.env.OUTLINE_PROVIDER || (provider === "claude" || process.env.ANTHROPIC_API_KEY ? "claude" : "mock");
+const outlineModel = process.env.OUTLINE_MODEL || "claude-opus-5-5";
+let outline: OutlineGenerator;
+if (outlineProvider === "claude") {
+  outline = new ClaudeOutlineGenerator(outlineModel);
+} else if (outlineProvider === "mock") {
+  outline = new MockOutlineGenerator();
+} else {
+  throw new Error(`Unknown OUTLINE_PROVIDER "${outlineProvider}" (expected claude or mock)`);
+}
+
+const { server } = createApp({ adapter: () => adapter, voice, outline, allowedOrigin: process.env.ALLOWED_ORIGIN });
 
 server.listen(port, host, () => {
   const label = adapter.simulated ? "mock (SIMULATED coverage)" : `${adapter.name} (${model})`;
   console.log(`Thread backend listening on http://${host}:${port} — coverage: ${label}`);
+  console.log(`Outline import: ${outline.simulated ? "mock (SIMULATED heuristic splitting)" : `${outline.name} (${outlineModel})`}`);
   console.log(`Voice: ${voice.simulated ? "mock (SIMULATED tones, no live STT)" : voice.name} — test page at /voice-demo/`);
   if (process.env.DAYTONA_SANDBOX_ID) {
     console.log(`Daytona preview (expected): https://${port}-${process.env.DAYTONA_SANDBOX_ID}.proxy.daytona.works`);

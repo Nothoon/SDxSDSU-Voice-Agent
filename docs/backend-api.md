@@ -23,18 +23,26 @@ npm run demo:fixtures  # drives a running server through the demo flow
 | `mock` (default) | **SIMULATED.** Word-overlap heuristic; weak on paraphrase. `providers.coverage` reports `degraded`. |
 | `claude` | Claude (`COVERAGE_MODEL`, default `claude-opus-5-5`) with structured output, low effort, and server-side refusal fallback. Requires `ANTHROPIC_API_KEY`. |
 
+### Outline import provider (slides/docs → talking points)
+
+| `OUTLINE_PROVIDER` | Behavior |
+| --- | --- |
+| `mock` (default without a key) | **SIMULATED.** Splits text by slide or heading and lifts words for the hint. Cannot read PDFs. `/api/health` reports `outline.simulated: true`. |
+| `claude` (default when `COVERAGE_PROVIDER=claude` or `ANTHROPIC_API_KEY` is set) | Claude (`OUTLINE_MODEL`, default `claude-opus-5-5`), medium effort, structured output, server-side refusal fallback. Reads PDFs natively; PPTX/DOCX text (including speaker notes) is extracted server-side. **Not yet verified against the live API.** |
+
 ## Transport
 
 JSON over HTTP for commands, Server-Sent Events for state. Every event includes the full `SessionState`, so clients replace state instead of merging it. CORS uses `ALLOWED_ORIGIN` (default `*`).
 
 ## Routes
 
-All under `/api`. Errors return `{ "error": string }` with 400, 404, or 409.
+All under `/api`. Errors return `{ "error": string }` with 400, 404, or 409 (outline import also uses 413, 422, 429, and 502).
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| GET | `/health` | | `{ ok, coverage, voice: { provider, simulated, stt } }` |
+| GET | `/health` | | `{ ok, coverage, voice: { provider, simulated, stt }, outline: { provider, simulated } }` |
 | GET | `/fixtures/outline` | | `{ outline: IdeaCard[] }` (README example) |
+| POST | `/outline/generate` | `{ filename, data }` (base64 of .pdf/.pptx/.docx/.txt/.md, ≤ 10 MB) or `{ text }` | `{ outline: IdeaCard[], source: { name, kind }, provider, simulated }`: an **unapproved draft** of 1–7 cards; nothing is stored |
 | POST | `/sessions` | `{ outline?, targetDurationSec? }` | `SessionState` |
 | GET | `/sessions/:id` | | `SessionState` |
 | PUT | `/sessions/:id/outline` | `{ outline, targetDurationSec? }` | `SessionState` (resets approval) |

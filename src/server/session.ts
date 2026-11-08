@@ -21,7 +21,7 @@ import { selectCue } from "./cue.js";
 export class SessionError extends Error {
   constructor(
     message: string,
-    readonly status: 400 | 404 | 409 | 502 | 503 = 400,
+    readonly status: 400 | 404 | 409 | 413 | 422 | 429 | 502 | 503 = 400,
   ) {
     super(message);
   }

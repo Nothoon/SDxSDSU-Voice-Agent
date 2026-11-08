@@ -21,6 +21,7 @@ let cards: IdeaCard[] = [],
   health: {
     coverage: string;
     voice: { simulated: boolean; stt: boolean };
+    outline?: { simulated: boolean };
   } | null = null;
 let voice: ThreadVoiceController | null = null,
   events: EventSource | null = null,
@@ -52,12 +53,14 @@ async function api<T = any>(
   path: string,
   body?: unknown,
   method = body === undefined ? "GET" : "POST",
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<T> {
+  const timeout = AbortSignal.timeout(options.timeoutMs ?? 15000);
   const response = await fetch(path, {
     method,
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
+    signal: options.signal ? AbortSignal.any([timeout, options.signal]) : timeout,
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok)
@@ -117,14 +120,14 @@ function intro(kicker: string, title: string, desc: string) {
   return `<div class="intro"><span class="eyebrow">${kicker}</span><h1>${title}</h1><p>${desc}</p></div>`;
 }
 function prepareView() {
-  return `${intro("01 / PREPARE", "Good ideas.<br>A little structure.", "Build a few anchors for your talk. You can always find your own way between them.")}<div class="prepare-grid"><section><div class="section-heading"><h2>Your talking points <span class="number-badge">${cards.length}</span></h2>${button("add", "＋ Add idea", "secondary", busy || cards.length >= 12)}</div><div class="idea-list">${
+  return `${intro("01 / PREPARE", "Good ideas.<br>A little structure.", "Build a few anchors for your talk. You can always find your own way between them.")}<div class="prepare-grid"><section><div class="section-heading"><h2>Your talking points <span class="number-badge">${cards.length}</span></h2><div class="heading-actions">${button("import", "⇪ Import slides or docs", "secondary", busy || !health)}${button("add", "＋ Add idea", "secondary", busy || cards.length >= 12)}</div></div><div class="idea-list">${
     ordered()
       .map(
         (c, i) =>
           `<article class="idea-card"><span class="card-number">${String(i + 1).padStart(2, "0")}</span><div class="card-content"><div class="card-heading"><h3>${esc(c.title)}</h3>${c.mustMention ? '<span class="must">Must mention</span>' : ""}</div><p>${esc(c.meaning)}</p><div class="anchor"><span>YOUR HINT</span> ${esc(c.cue)}</div></div><div class="card-tools">${button("edit:" + c.id, "Edit", "text", busy)}<div><button aria-label="Move ${esc(c.title)} up" data-action="up:${c.id}" class="icon-button" ${i === 0 ? "disabled" : ""}>↑</button><button aria-label="Move ${esc(c.title)} down" data-action="down:${c.id}" class="icon-button" ${i === cards.length - 1 ? "disabled" : ""}>↓</button></div></div></article>`,
       )
       .join("") ||
-    `<div class="empty"><h3>Start with one thought.</h3><p>Add an idea or try a sample outline to see how Thread works.</p>${button("add", "Add your first idea", "primary", busy)}</div>`
+    `<div class="empty"><h3>Start with one thought.</h3><p>Add an idea, import your slides or notes, or try a sample outline to see how Thread works.</p><div class="empty-actions">${button("add", "Add your first idea", "primary", busy)}${button("import", "Import slides or docs", "secondary", busy || !health)}</div></div>`
   }</div><div class="list-footer">${button("sample", "Try a sample outline", "text", busy)}<span>Up to 12 ideas. Three to seven is a good start.</span></div></section><aside class="prep-summary"><span class="eyebrow">A LITTLE GUIDANCE</span><h2>Anchors,<br>not a script.</h2><p>A short hint should bring your idea back. A few familiar words are all you need.</p><div class="example"><span>“Your first customer”</span><small>A hint you’ll recognize at a glance.</small></div><label for="duration">How long is your talk?</label><select id="duration">${[
     [0, "No time target"],
     [120, "2 minutes"],
@@ -362,6 +365,7 @@ async function run(action: string) {
   try {
     if (action.startsWith("edit:")) editor(action.slice(5));
     else if (action === "add") editor();
+    else if (action === "import") importer();
     else if (action.startsWith("up:") || action.startsWith("down:")) {
       const id = action.split(":")[1],
         i = cards.findIndex((c) => c.id === id),
@@ -514,6 +518,71 @@ function editor(id?: string) {
     else cards.push(card);
     dialog.close();
     render();
+  };
+}
+const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
+function toBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+function importer() {
+  const simulated = !!health?.outline?.simulated;
+  const dialog = document.createElement("dialog");
+  dialog.setAttribute("aria-labelledby", "import-title");
+  dialog.innerHTML = `<form id="import-form"><div class="dialog-heading"><span class="eyebrow">START FROM YOUR MATERIAL</span><h2 id="import-title">Import slides or docs</h2></div><p class="dialog-lede">Thread drafts talking points and short hints from your own material. You’ll review every card before you speak.</p><label class="file-drop">Slides or document <span>PDF, PowerPoint (.pptx), Word (.docx), or text · up to 10 MB</span><input type="file" name="file" accept=".pdf,.pptx,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"></label><div class="or-divider" aria-hidden="true"><span>or</span></div><label>Paste your notes<textarea name="text" maxlength="50000" placeholder="A speech draft, an outline, or a few bullets…"></textarea></label>${cards.length ? `<p class="fine">Imported ideas replace your current ${cards.length} ${cards.length === 1 ? "idea" : "ideas"}.</p>` : ""}${simulated ? '<p class="provider-note">Practice import splits your material by slide or heading without AI, so expect to edit more. PDFs need AI import on the server.</p>' : ""}<p id="import-error" role="alert"></p><div class="dialog-actions"><span></span><div><button type="button" id="cancel-import" class="secondary">Cancel</button> <button class="primary" id="run-import">Create talking points</button></div></div></form>`;
+  document.body.append(dialog);
+  dialog.showModal();
+  const controller = new AbortController();
+  dialog.onclose = () => {
+    controller.abort();
+    dialog.remove();
+  };
+  $("cancel-import").onclick = () => dialog.close();
+  const form = $<HTMLFormElement>("import-form");
+  const fileInput = form.elements.namedItem("file") as HTMLInputElement;
+  const textInput = form.elements.namedItem("text") as HTMLTextAreaElement;
+  const submit = $<HTMLButtonElement>("run-import");
+  const showError = (text: string) => ($("import-error").textContent = text);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    showError("");
+    const file = fileInput.files?.[0];
+    const text = textInput.value.trim();
+    if (!file && !text) return showError("Choose a file or paste your notes.");
+    if (file && file.size > IMPORT_MAX_BYTES) return showError("Keep uploads under 10 MB.");
+    submit.disabled = true;
+    submit.textContent = "Reading your material…";
+    try {
+      const body = file
+        ? { filename: file.name, data: toBase64(new Uint8Array(await file.arrayBuffer())) }
+        : { text };
+      const result = await api<{
+        outline: IdeaCard[];
+        source: { name: string };
+        simulated: boolean;
+      }>("/api/outline/generate", body, "POST", {
+        timeoutMs: 120000,
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      cards = result.outline;
+      focusId = cards[0]?.id || null;
+      error = "";
+      message = `Drafted ${cards.length} talking ${cards.length === 1 ? "point" : "points"} from ${file ? result.source.name : "your notes"}. Review each one and reword any hint that doesn’t sound like you.${result.simulated ? " (Practice import: simple splitting, not AI.)" : ""}`;
+      dialog.close();
+      render();
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      showError(
+        err instanceof DOMException && err.name === "TimeoutError"
+          ? "That took too long. Try a smaller file or paste your notes."
+          : err instanceof Error ? err.message : String(err),
+      );
+      submit.disabled = false;
+      submit.textContent = "Create talking points";
+    }
   };
 }
 document.addEventListener("click", (e) => {

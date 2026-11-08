@@ -80,7 +80,7 @@ Build one dependable end-to-end experience before expanding features.
 | P0 | Speaker control | More, Pause, End, and immediate playback interruption work |
 | P0 | Degraded operation | A visible cue remains usable when a provider disconnects |
 | P1 | Session recap | Covered and missed essential ideas appear after ending |
-| Later | Assisted outline generation | Rough notes become editable cards automatically |
+| Later | Assisted outline generation | Rough notes become editable cards automatically. **Started:** import slides, docs, or pasted notes into draft cards (`POST /api/outline/generate`) |
 | Later | Rehearsal personalization | Speaker can record or refine the cues that help them most |
 | Later | Opt-in automatic cues | Evaluate carefully after manual cueing proves useful |
 
