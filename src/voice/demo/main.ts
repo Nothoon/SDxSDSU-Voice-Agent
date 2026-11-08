@@ -1,6 +1,6 @@
 // Voice test page. Wires the voice controller to Nathan's backend the way the UI will:
 // the page asks the backend for a cue, shows its text, then hands it to playCue().
-import type { CueResponse, SessionEvent, SessionState } from "../../shared/types.js";
+import type { CueResponse, IdeaCard, SessionEvent, SessionState } from "../../shared/types.js";
 import { createVoiceController, type ThreadVoiceController } from "../browser/controller.js";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -10,6 +10,62 @@ let sessionId: string | null = null;
 let state: SessionState | null = null;
 let events: EventSource | null = null;
 let liveSttAvailable = false;
+
+// Sample outline for trying the loop on an unrelated topic. Meanings use distinct words
+// so the SIMULATED word-overlap coverage can tell the cards apart.
+const SKILLET: IdeaCard[] = [
+  {
+    id: "lasts",
+    title: "Hook: it lasts",
+    meaning: "Skillets outlive their owners for generations",
+    cue: "It outlives you",
+    expandedCue: "A good skillet lasts for generations and gets passed down.",
+    mustMention: false,
+    order: 0,
+  },
+  {
+    id: "price",
+    title: "Cheap",
+    meaning: "Costs about twenty dollars at hardware stores",
+    cue: "Twenty bucks",
+    expandedCue: "It costs about twenty dollars at any hardware store.",
+    mustMention: false,
+    order: 1,
+  },
+  {
+    id: "seasoning",
+    title: "Seasoning",
+    meaning: "Seasoning builds a natural nonstick coating",
+    cue: "The seasoning",
+    expandedCue: "Explain how seasoning builds a natural nonstick coating.",
+    mustMention: true,
+    order: 2,
+  },
+  {
+    id: "soap",
+    title: "Soap myth",
+    meaning: "Using soap occasionally is fine despite the myth",
+    cue: "The soap myth",
+    expandedCue: "Bust the myth: a little soap won't ruin it.",
+    mustMention: true,
+    order: 3,
+  },
+  {
+    id: "close",
+    title: "Closing",
+    meaning: "Go buy one this weekend",
+    cue: "Buy one this weekend",
+    expandedCue: "Close by telling them to buy one this weekend.",
+    mustMention: true,
+    order: 4,
+  },
+];
+
+async function loadPreset() {
+  const preset = $<HTMLSelectElement>("preset").value;
+  const outline = preset === "demo" ? (await api("/api/fixtures/outline")).outline : SKILLET;
+  $<HTMLTextAreaElement>("outline").value = JSON.stringify(outline, null, 2);
+}
 
 function log(line: string) {
   const el = $("log");
@@ -126,7 +182,12 @@ async function refreshOutputs() {
 
 $("create").onclick = async () => {
   try {
-    const { outline } = await api("/api/fixtures/outline");
+    let outline: unknown;
+    try {
+      outline = JSON.parse($<HTMLTextAreaElement>("outline").value);
+    } catch {
+      throw new Error("outline is not valid JSON");
+    }
     const created = await api<SessionState>("/api/sessions", {
       method: "POST",
       body: JSON.stringify({ outline, targetDurationSec: 180 }),
@@ -198,6 +259,7 @@ $<HTMLSelectElement>("output").onchange = async (e) => {
   log(ok ? "output device set" : "this browser cannot pick an output device; use system settings");
 };
 $("simulated").onchange = () => makeVoice();
+$("preset").onchange = () => void loadPreset().catch((err) => log(err.message));
 
 const sayTyped = () => {
   const input = $<HTMLInputElement>("simText");
@@ -210,7 +272,8 @@ $("simText").onkeydown = (e) => {
 };
 
 document.addEventListener("keydown", (e) => {
-  if ((e.target as HTMLElement).tagName === "INPUT" || e.repeat) return;
+  const tag = (e.target as HTMLElement).tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.repeat) return;
   if (e.code === "Space") {
     e.preventDefault();
     void requestCue("short");
@@ -234,4 +297,5 @@ document.addEventListener("keydown", (e) => {
     log(`backend unreachable: ${(err as Error).message}`);
   }
   makeVoice();
+  await loadPreset().catch((err) => log(`outline load failed: ${err.message}`));
 })();

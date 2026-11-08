@@ -15,7 +15,7 @@ Open `/voice-demo/` on the server. On the Daytona preview the URL is `https://30
 
 Use it in this order:
 
-1. Create & approve the demo session. Cue audio is prepared automatically.
+1. Pick an outline preset (cast-iron sample or README demo) or edit its JSON, then Create & approve. Cue audio is prepared automatically.
 2. Pick the earbud, then press Preview.
 3. Press Start and speak.
 4. Press Cue (Space) or More (M).

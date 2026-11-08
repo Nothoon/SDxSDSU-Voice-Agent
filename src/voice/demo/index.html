@@ -21,6 +21,7 @@
   button:disabled { opacity: .45; cursor: default; }
   select, input[type=text] { font: inherit; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); min-width: 0; }
   input[type=text] { flex: 1 1 240px; }
+  textarea { width: 100%; font: 12px/1.45 ui-monospace, monospace; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); resize: vertical; }
   .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); }
   .connected, .ok, .covered { color: var(--ok); border-color: var(--ok); }
   .degraded, .partial, .waiting { color: var(--warn); border-color: var(--warn); }
@@ -39,12 +40,21 @@
 <body>
 <main>
   <h1>Thread voice test page</h1>
-  <p class="note">Developer harness for the voice adapter (mic → transcript → backend, cue audio playback). Not the product UI. Uses the README demo outline.</p>
+  <p class="note">Developer harness for the voice adapter (mic → transcript → backend, cue audio playback). Not the product UI. Pick or edit an outline below.</p>
   <div class="banner" id="simBanner"></div>
 
   <section>
     <h2>1 · Session</h2>
-    <div class="row">
+    <div class="row" style="margin-bottom:8px">
+      <label for="preset">Outline</label>
+      <select id="preset">
+        <option value="skillet">Sample: cast-iron skillets</option>
+        <option value="demo">README demo (Thread pitch)</option>
+      </select>
+      <span class="note" style="margin:0">Edit the JSON below, then create. Changes need a new session.</span>
+    </div>
+    <textarea id="outline" spellcheck="false" rows="10"></textarea>
+    <div class="row" style="margin-top:8px">
       <button class="primary" id="create">Create &amp; approve demo session</button>
       <button id="prepare" disabled>Prepare cue audio</button>
       <span id="sessionInfo" class="note" style="margin:0"></span>
