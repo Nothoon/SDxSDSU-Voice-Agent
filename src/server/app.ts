@@ -2,6 +2,9 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { CoverageStatus, CueLevel, ProviderName, ProviderStatus } from "../shared/types.js";
 import type { CoverageAdapter } from "./coverage/adapter.js";
 import { demoOutline } from "./fixtures/outline.js";
+import { ExtractError, MAX_UPLOAD_BYTES, readUpload } from "./outline/extract.js";
+import { toIdeaCards, type OutlineGenerator } from "./outline/generator.js";
+import { MockOutlineGenerator } from "./outline/mock.js";
 import { STREAMING, type Route } from "./http.js";
 import { Session, SessionError } from "./session.js";
 import { MockVoiceProvider } from "./voice/mock.js";
@@ -12,10 +15,21 @@ import { uiRoutes } from "../ui/routes.js";
 
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_SESSIONS = 50;
+// Base64 inflates uploads by ~4/3; leave room for the JSON wrapper.
+const MAX_UPLOAD_BODY_BYTES = Math.ceil(MAX_UPLOAD_BYTES * 1.4);
+const UPLOAD_PATH = "/api/outline/generate";
+const MAX_CONCURRENT_GENERATIONS = 3;
 
-export function createApp(options: { adapter: () => CoverageAdapter; voice?: VoiceProvider; allowedOrigin?: string }) {
+export function createApp(options: {
+  adapter: () => CoverageAdapter;
+  voice?: VoiceProvider;
+  outline?: OutlineGenerator;
+  allowedOrigin?: string;
+}) {
   const sessions = new Map<string, Session>();
   const voice = options.voice ?? new MockVoiceProvider();
+  const outline = options.outline ?? new MockOutlineGenerator();
+  let generating = 0;
 
   const get = (id: string) => {
     const session = sessions.get(id);
@@ -28,8 +42,48 @@ export function createApp(options: { adapter: () => CoverageAdapter; voice?: Voi
       ok: true,
       coverage: options.adapter().name,
       voice: { provider: voice.name, simulated: voice.simulated, stt: voice.sttAvailable },
+      outline: { provider: outline.name, simulated: outline.simulated },
     })],
     ["GET", /^\/api\/fixtures\/outline$/, () => ({ outline: demoOutline })],
+
+    // Draft idea cards from uploaded slides/docs or pasted notes. Nothing is stored:
+    // the file lives only for this request, and the cards return to the client as an
+    // unapproved draft for the speaker to review.
+    ["POST", /^\/api\/outline\/generate$/, async ({ res, body }) => {
+      if (generating >= MAX_CONCURRENT_GENERATIONS) throw new SessionError("Thread is busy reading other files; try again shortly", 429);
+      generating++;
+      const abort = new AbortController();
+      // Stop paying for generation if the client gives up (closes before we respond).
+      const onClose = () => {
+        if (!res.writableEnded) abort.abort();
+      };
+      res.on("close", onClose);
+      try {
+        const source = readUpload(body ?? {});
+        let drafts;
+        try {
+          drafts = await outline.generate(source, abort.signal);
+        } catch (err) {
+          if (err instanceof ExtractError) throw err;
+          console.error("Outline generation failed:", err instanceof Error ? err.message : err);
+          throw new SessionError("Couldn't create talking points from that file. Try again, or paste your notes instead.", 502);
+        }
+        const cards = toIdeaCards(drafts);
+        if (!cards.length) throw new SessionError("No talking points were found in that file. Try pasting your notes instead.", 422);
+        return {
+          outline: cards,
+          source: { name: source.name, kind: source.kind === "pdf" ? "pdf" : source.format },
+          provider: outline.name,
+          simulated: outline.simulated,
+        };
+      } catch (err) {
+        if (err instanceof ExtractError) throw new SessionError(err.message, err.status);
+        throw err;
+      } finally {
+        generating--;
+        res.off("close", onClose);
+      }
+    }],
 
     ["POST", /^\/api\/sessions$/, ({ body }) => {
       if (sessions.size >= MAX_SESSIONS) {
@@ -119,7 +173,7 @@ export function createApp(options: { adapter: () => CoverageAdapter; voice?: Voi
       for (const [method, pattern, handler] of routes) {
         const match = pattern.exec(path);
         if (!match || method !== req.method) continue;
-        const body = req.method === "GET" ? undefined : await readJson(req);
+        const body = req.method === "GET" ? undefined : await readJson(req, path === UPLOAD_PATH ? MAX_UPLOAD_BODY_BYTES : MAX_BODY_BYTES);
         const result = await handler({ req, res, params: match.slice(1), body });
         if (result !== STREAMING) json(res, 200, result);
         return;
@@ -142,12 +196,12 @@ function json(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify(body));
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readJson(req: IncomingMessage, limit: number): Promise<unknown> {
   let size = 0;
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new SessionError("Request body too large");
+    if (size > limit) throw new SessionError("Request body too large", 413);
     chunks.push(chunk);
   }
   if (chunks.length === 0) return undefined;

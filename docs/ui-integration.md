@@ -39,6 +39,10 @@ Keyboard shortcuts: H or C for Hint, M for More, Right Arrow for Next Idea. Shor
 - On microphone startup failure, the UI stops input and attempts to pause the backend. If a lifecycle request fails, input is still stopped and End can be retried. Text hints remain visible when audio fails.
 - End closes the event stream and mic/controller; the server clears transcript buffers. The outline stays in browser memory for another attempt. Refresh resets the frontend. No persistence was added.
 
+## Import slides or docs
+
+On the ideas screen, **Import slides or docs** opens a dialog that takes a PDF, PowerPoint (.pptx), Word (.docx), or text file up to 10 MB, or pasted notes, and posts it to `POST /api/outline/generate`. The returned cards replace the current draft list. They stay editable and still go through the usual review and **Review setup** approval, so approved cards remain the source of truth. With the simulated import provider the dialog and the success notice say so, and PDFs are refused with guidance.
+
 ## Provider modes and remaining feature work
 
 `/api/health` chooses live or simulated input. With mock voice, the microphone is never opened; typed practice speech is passed through the real voice adapter to the backend. Mock audio is a placeholder tone, and mock coverage is word matching. These are visibly labeled and do not establish live speech quality.
@@ -52,5 +56,7 @@ The opt-in Auto Hint proposal remains in PR #3. This UI implements manual Hint a
 Browser checks passed in the in-app browser against the real local API with mock providers: add/approve an outline, Hint/More/Next, typed-speech coverage updates, Pause disabling hints, Resume, End, recap, and responsive layout at desktop and 390×844 phone sizes, with no horizontal overflow or browser JavaScript errors. Live ElevenLabs speech, real microphone/earbud routing, latency targets, and Daytona-hosted browser behavior still require hardware/provider verification.
 
 ## Handoff
+
+Slide/doc import (branch `vineet/document-import`) was added at the user's request across roles: `src/server/outline/` and the `/api/outline/generate` route for Nathan to review, and the import dialog in `src/ui/app.ts`/`styles.css` for Ali. It adds no dependency (PPTX/DOCX are read with a small built-in zip reader) and no shared-type changes.
 
 Ali owns `src/ui/`. Nathan retains `src/server/`, shared contracts, and Daytona startup. Vineet retains `src/voice/` and speech providers. Build changes reuse the existing esbuild dependency, preserve the lockfile, and add no runtime dependency. The developer `/voice-demo/` remains available.
