@@ -15,7 +15,7 @@ export class MockOutlineGenerator implements OutlineGenerator {
   async generate(source: SourceDocument): Promise<DraftIdea[]> {
     if (source.kind === "pdf") {
       throw new ExtractError(
-        "Practice import can't read PDFs. Upload .pptx, .docx, or .txt, or paste your notes. (Server: set ANTHROPIC_API_KEY for AI import.)",
+        "Practice import can't read PDFs. Upload .pptx, .docx, or .txt, or paste your notes. (Server: set OPENAI_API_KEY or ANTHROPIC_API_KEY for AI import.)",
       );
     }
     let sections = source.sections.filter((s) => !SKIP.test(s.heading.trim()) && (s.lines.length || s.notes || s.heading));

@@ -5,6 +5,7 @@ import { MockCoverageAdapter } from "./coverage/mock.js";
 import { ClaudeOutlineGenerator } from "./outline/claude.js";
 import type { OutlineGenerator } from "./outline/generator.js";
 import { MockOutlineGenerator } from "./outline/mock.js";
+import { OpenAIOutlineGenerator } from "./outline/openai.js";
 import { ElevenLabsVoiceProvider } from "./voice/elevenlabs.js";
 import { MockVoiceProvider } from "./voice/mock.js";
 import type { VoiceProvider } from "./voice/provider.js";
@@ -42,18 +43,24 @@ if (voiceProvider === "elevenlabs") {
   throw new Error(`Unknown VOICE_PROVIDER "${voiceProvider}" (expected elevenlabs or mock)`);
 }
 
-// Slide/doc import defaults to Claude when it is configured for coverage or a key is set,
-// otherwise the SIMULATED heuristic splitter.
+// Slide/doc import: OpenAI when OPENAI_API_KEY is set, then Claude when it is configured for
+// coverage or a key is set, otherwise the SIMULATED heuristic splitter.
 const outlineProvider =
-  process.env.OUTLINE_PROVIDER || (provider === "claude" || process.env.ANTHROPIC_API_KEY ? "claude" : "mock");
-const outlineModel = process.env.OUTLINE_MODEL || "claude-opus-5-5";
+  process.env.OUTLINE_PROVIDER ||
+  (process.env.OPENAI_API_KEY ? "openai" : provider === "claude" || process.env.ANTHROPIC_API_KEY ? "claude" : "mock");
+let outlineModel = "";
 let outline: OutlineGenerator;
-if (outlineProvider === "claude") {
+if (outlineProvider === "openai") {
+  if (!process.env.OPENAI_API_KEY) throw new Error("OUTLINE_PROVIDER=openai requires OPENAI_API_KEY");
+  outlineModel = process.env.OPENAI_OUTLINE_MODEL || "gpt-5.5";
+  outline = new OpenAIOutlineGenerator(outlineModel, process.env.OPENAI_API_KEY);
+} else if (outlineProvider === "claude") {
+  outlineModel = process.env.OUTLINE_MODEL || "claude-opus-5-5";
   outline = new ClaudeOutlineGenerator(outlineModel);
 } else if (outlineProvider === "mock") {
   outline = new MockOutlineGenerator();
 } else {
-  throw new Error(`Unknown OUTLINE_PROVIDER "${outlineProvider}" (expected claude or mock)`);
+  throw new Error(`Unknown OUTLINE_PROVIDER "${outlineProvider}" (expected openai, claude, or mock)`);
 }
 
 const { server } = createApp({ adapter: () => adapter, voice, outline, allowedOrigin: process.env.ALLOWED_ORIGIN });

@@ -8,6 +8,7 @@ import { readUpload, readZip, splitPlainText } from "../src/server/outline/extra
 import { toIdeaCards, type OutlineGenerator } from "../src/server/outline/generator.js";
 import { MockOutlineGenerator } from "../src/server/outline/mock.js";
 import { ClaudeOutlineGenerator } from "../src/server/outline/claude.js";
+import { OpenAIOutlineGenerator } from "../src/server/outline/openai.js";
 import { validateOutline } from "../src/server/session.js";
 import { validateCard } from "../src/ui/model.js";
 
@@ -259,4 +260,74 @@ test("provider failures become a 502 without leaking details", async () => {
     assert.equal(res.status, 502);
     assert.doesNotMatch((await res.json()).error, /secret/);
   });
+});
+
+// ---- OpenAI generator (fake fetch; the live API is exercised manually) ----
+
+function fakeOpenAI(reply: { status?: number; body: unknown }) {
+  const calls: Array<{ url: string; headers: Record<string, string>; body: any }> = [];
+  const fetchImpl = (async (url: string, init: RequestInit) => {
+    calls.push({ url, headers: init.headers as Record<string, string>, body: JSON.parse(String(init.body)) });
+    return new Response(JSON.stringify(reply.body), { status: reply.status ?? 200 });
+  }) as typeof fetch;
+  return { calls, fetchImpl };
+}
+
+const openaiCards = {
+  status: "completed",
+  output: [
+    { type: "reasoning", content: [] },
+    {
+      type: "message",
+      content: [
+        {
+          type: "output_text",
+          text: JSON.stringify({
+            ideas: [
+              { title: "Fried noodles", meaning: "Instant noodles are fried in palm oil.", cue: "Fried in palm oil", expandedCue: "Instant noodles are flash fried in palm oil.", mustMention: true },
+            ],
+          }),
+        },
+      ],
+    },
+  ],
+};
+
+test("OpenAI generator sends PDFs as a file input with a strict schema and parses cards", async () => {
+  const { calls, fetchImpl } = fakeOpenAI({ body: openaiCards });
+  const gen = new OpenAIOutlineGenerator("gpt-test", "sk-test", fetchImpl);
+  const ideas = await gen.generate({ kind: "pdf", name: "deck.pdf", base64: "JVBERi0=" });
+  assert.equal(ideas[0].cue, "Fried in palm oil");
+  const { url, headers, body } = calls[0];
+  assert.equal(url, "https://api.openai.com/v1/responses");
+  assert.equal(headers.Authorization, "Bearer sk-test");
+  assert.equal(body.model, "gpt-test");
+  assert.equal(body.store, false);
+  assert.equal(body.text.format.type, "json_schema");
+  assert.equal(body.text.format.strict, true);
+  assert.deepEqual(body.input[0].content[0], { type: "input_file", filename: "deck.pdf", file_data: "data:application/pdf;base64,JVBERi0=" });
+});
+
+test("OpenAI generator sends extracted text for slides and docs", async () => {
+  const { calls, fetchImpl } = fakeOpenAI({ body: openaiCards });
+  await new OpenAIOutlineGenerator("m", "k", fetchImpl).generate({
+    kind: "text", name: "n.txt", format: "text", sections: [], text: "Ramen is fried.",
+  });
+  const part = calls[0].body.input[0].content[0];
+  assert.equal(part.type, "input_text");
+  assert.match(part.text, /<material format="text">\nRamen is fried\.\n<\/material>/);
+});
+
+test("OpenAI generator surfaces refusals, truncation, and HTTP errors without the key", async () => {
+  const refusal = fakeOpenAI({ body: { status: "completed", output: [{ type: "message", content: [{ type: "refusal", refusal: "no" }] }] } });
+  await assert.rejects(new OpenAIOutlineGenerator("m", "k", refusal.fetchImpl).generate({ kind: "pdf", name: "a.pdf", base64: "x" }), /declined/);
+
+  const cut = fakeOpenAI({ body: { status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output: [] } });
+  await assert.rejects(new OpenAIOutlineGenerator("m", "k", cut.fetchImpl).generate({ kind: "pdf", name: "a.pdf", base64: "x" }), /ran out of room/);
+
+  const denied = fakeOpenAI({ status: 401, body: { error: { message: "Incorrect API key provided" } } });
+  await assert.rejects(
+    new OpenAIOutlineGenerator("m", "sk-secret", denied.fetchImpl).generate({ kind: "pdf", name: "a.pdf", base64: "x" }),
+    (err: Error) => /OpenAI 401: Incorrect API key/.test(err.message) && !err.message.includes("sk-secret"),
+  );
 });

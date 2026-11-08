@@ -28,7 +28,8 @@ npm run demo:fixtures  # drives a running server through the demo flow
 | `OUTLINE_PROVIDER` | Behavior |
 | --- | --- |
 | `mock` (default without a key) | **SIMULATED.** Splits text by slide or heading and lifts words for the hint. Cannot read PDFs. `/api/health` reports `outline.simulated: true`. |
-| `claude` (default when `COVERAGE_PROVIDER=claude` or `ANTHROPIC_API_KEY` is set) | Claude (`OUTLINE_MODEL`, default `claude-opus-5-5`), medium effort, structured output, server-side refusal fallback. Reads PDFs natively; PPTX/DOCX text (including speaker notes) is extracted server-side. **Not yet verified against the live API.** |
+| `openai` (default when `OPENAI_API_KEY` is set) | OpenAI Responses API (`OPENAI_OUTLINE_MODEL`, default `gpt-5.5`) with a strict JSON schema and `store: false`. Same prompt and card schema as `claude`. PDFs are sent as a file input; PPTX/DOCX text (including speaker notes) is extracted server-side. |
+| `claude` (default when no OpenAI key, and `COVERAGE_PROVIDER=claude` or `ANTHROPIC_API_KEY` is set) | Claude (`OUTLINE_MODEL`, default `claude-opus-5-5`), medium effort, structured output, server-side refusal fallback. Reads PDFs natively; PPTX/DOCX text (including speaker notes) is extracted server-side. **Not yet verified against the live API.** |
 
 ## Transport
 
