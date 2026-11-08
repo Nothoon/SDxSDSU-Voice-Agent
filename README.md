@@ -8,6 +8,10 @@ You bring the ideas. Speak in your own words. Thread follows along, remembers wh
 
 > **Status:** A runnable frontend demo now implements prepare → preflight → speak → recap on `ali/ui`. Microphone, coverage, connection, and cue audio are explicitly simulated; no live provider integration is claimed. The product specification below remains the target. See [UI setup and integration handoff](docs/ui-integration.md).
 
+## Current feature assignment
+
+The user has authorized **opt-in Auto Hint** and a dedicated **Next Idea** button. Read [the implementation brief](docs/features/auto-hint-next-idea.md) for the current behavior, state rules, ownership, and acceptance checks. It supersedes older manual-only cue behavior below and in the role briefs. These features are specified, not yet implemented; Auto Hint defaults off. Hint reminds the current idea; Next Idea advances focus without claiming coverage; More expands the last delivered cue.
+
 ## The problem we are solving
 
 You know your material. Then, halfway through a pitch, you lose the connection to your next idea. Reading a script can break eye contact; searching notes takes attention away from the audience. Thread should make that recovery quick and discreet.
@@ -82,7 +86,7 @@ Build one dependable end-to-end experience before expanding features.
 | P1 | Session recap | Covered and missed essential ideas appear after ending |
 | Later | Assisted outline generation | Rough notes become editable cards automatically |
 | Later | Rehearsal personalization | Speaker can record or refine the cues that help them most |
-| Later | Opt-in automatic cues | Evaluate carefully after manual cueing proves useful |
+| Next | Opt-in Auto Hint and Next Idea | Implement the [feature brief](docs/features/auto-hint-next-idea.md) and its acceptance checks |
 
 **Scope boundary:** Start with English, one speaker, one microphone, and a short pitch. Defer slide ingestion, wearable hardware, accounts, dashboards, emotion detection, filler-word coaching, and open-ended conversational responses.
 
@@ -104,7 +108,7 @@ The application owns cue selection and playback. Use a model to interpret covera
 
 Playback rules:
 
-- Play only after an explicit request in the MVP. Never trigger from silence alone.
+- Play after a manual request, or under the explicitly enabled Auto Hint policy in the feature brief. With Auto Hint off, silence never triggers speech.
 - If the speaker is talking, show the cue immediately and wait for a speech gap before playing it. Cancel if they continue without a gap; let them request it again.
 - Keep at most one cue request pending. New requests replace stale ones; do not queue overlapping audio.
 - Stop playback when the speaker resumes. Exclude assistant playback from coverage tracking using echo handling and tagged playback intervals; verify that speaker interruptions are still captured.
