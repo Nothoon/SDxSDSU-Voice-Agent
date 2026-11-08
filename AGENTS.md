@@ -21,9 +21,13 @@ If the user's identity or assignment is absent, ask which role you are implement
 - Use mocks behind the agreed interfaces to start independently. Clearly label simulated data and failures; do not present mocks as live integrations.
 - Do not message teammates or their chats without explicit user authorization. Record handoffs in the PR or task summary when direct coordination is unavailable.
 
+## Current feature assignment
+
+Read [Auto Hint and Next Idea](docs/features/auto-hint-next-idea.md) when implementing cue behavior. The user authorized opt-in automatic hints and a dedicated Next Idea button. That brief supersedes older manual-only guidance in role briefs and integration notes; other ownership and security rules still apply.
+
 ## Non-negotiable product behavior
 
-- Thread follows approved ideas and gives minimal reminders. Manual cue requests are the MVP trigger; silence must not automatically trigger speech.
+- Thread follows approved ideas and gives minimal reminders. Manual Hint and Next Idea remain available. Automatic speech is allowed only when the user enables Auto Hint, under the pause, rearming, cancellation, and lifecycle rules in docs/features/auto-hint-next-idea.md.
 - Preserve coverage when points are paraphrased or reordered. More expands the last cue and does not advance the idea.
 - Prevent overlapping playback and discard stale responses. Speaker resumption interrupts cue audio.
 - Pause and End stop mic transmission and playback. End also clears application session buffers and closes streams.
