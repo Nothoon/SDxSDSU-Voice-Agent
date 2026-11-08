@@ -6,7 +6,7 @@
 
 You bring the ideas. Speak in your own words. Thread follows along, remembers what you have covered, and helps you find your way back with a few words through an earbud.
 
-> **Status:** Product specification and build plan. This repository starts with documentation; the features below are planned, not implemented. There is no runnable application yet.
+> **Status:** A runnable frontend demo now implements prepare → preflight → speak → recap on `ali/ui`. Microphone, coverage, connection, and cue audio are explicitly simulated; no live provider integration is claimed. The product specification below remains the target. See [UI setup and integration handoff](docs/ui-integration.md).
 
 ## The problem we are solving
 
@@ -262,7 +262,16 @@ Use a live speaker and live tracking. Keep a recorded backup clearly labeled as 
 
 ## Getting started
 
-There are no install or run commands yet because no application stack has been committed. The first implementation PR should add the chosen stack, lockfile, `.env.example`, and verified setup commands here.
+Requires Node.js 22+. The frontend demo has no package dependencies or API keys.
+
+```sh
+npm start
+# Open http://localhost:3000
+npm run check
+npm test
+```
+
+The static Node server is a local frontend preview, not Nathan's backend. No provider keys belong in `public/`. A lockfile and environment example are unnecessary until dependencies or server integrations are added. Browser checks and remaining integration work are documented in [docs/ui-integration.md](docs/ui-integration.md).
 
 Start by claiming a workstream, agreeing on the contracts above, and building the smallest working cue loop. Preserve the product rule throughout:
 
