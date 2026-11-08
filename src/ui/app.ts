@@ -43,6 +43,9 @@ let focusId: string | null = null,
   clockAt = Date.now(),
   streamOk = true,
   transportStopped = false;
+// A continuous loop of thread: decorative only, with no interaction hooks.
+const threadMark = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true" focusable="false"><path d="M8 31c0-8 8-19 16-19 7 0 10 5 10 10 0 9-7 16-13 16-5 0-8-3-8-7 0-8 9-17 17-17 7 0 11 4 11 10 0 8-8 13-17 13H7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+const threadArtwork = `<div class="intro-art" aria-hidden="true"><svg viewBox="0 0 320 150" fill="none" focusable="false"><path class="art-guide" d="M18 108h284M18 44h284"/><path class="art-thread" d="M18 109c42 0 58-85 109-85 33 0 53 23 53 49s-20 49-43 49c-21 0-36-14-36-34 0-34 41-61 75-61 35 0 53 19 53 42 0 27-24 40-51 40h124"/><circle cx="18" cy="109" r="5" class="art-end"/><circle cx="302" cy="109" r="5" class="art-end"/></svg><span>A LITTLE STRUCTURE. A NATURAL FLOW.</span></div>`;
 const icon = (name: string) =>
   ({ thread: "⌁", prepare: "01", setup: "02", speak: "03" })[name] ?? name;
 const button = (action: string, label: string, kind = "", disabled = false) =>
@@ -103,7 +106,7 @@ function fail(e: unknown) {
 function shell() {
   const step =
     stage === "recap" ? 3 : ["prepare", "setup", "speak"].indexOf(stage);
-  return `<aside class="sidebar"><a class="brand" href="/" aria-label="Thread home"><span class="brand-icon">⌁</span> thread<span class="brand-period">.</span></a><p class="side-caption">YOUR SPEAKING COMPANION</p><nav aria-label="Session steps">${[
+  return `<aside class="sidebar"><a class="brand" href="/" aria-label="Thread home"><span class="brand-icon">${threadMark}</span> thread<span class="brand-period">.</span></a><p class="side-caption">YOUR SPEAKING COMPANION</p><nav aria-label="Session steps">${[
     ["prepare", "Your ideas", "Make a little room for thought"],
     ["setup", "Your setup", "A quick check before you begin"],
     ["speak", "Your moment", "Speak in your own words"],
@@ -114,13 +117,13 @@ function shell() {
     )
     .join(
       "",
-    )}</nav><div class="side-bottom"><div class="thread-line">⌁</div><p>You bring the ideas.<br>We’ll keep the thread.</p><span>Stay present. Sound like you.</span></div></aside><div class="workspace"><header><span>YOUR SPACE TO SPEAK</span><span class="connection"><i class="${health ? "" : "offline"}"></i>${health ? "Connected" : "Connecting"}</span></header><main id="main" tabindex="-1">${error ? `<div class="alert" role="alert"><span>${esc(error)}</span>${button("dismiss", "Dismiss", "text")}</div>` : ""}${message ? `<p class="notice" role="status">${esc(message)}</p>` : ""}${stage === "prepare" ? prepareView() : stage === "setup" ? setupView() : stage === "speak" ? speakingView() : recapView()}</main><footer><span>thread. &nbsp; Keep your flow.</span><span>Your voice leads the way.</span></footer></div>`;
+    )}</nav><div class="side-bottom"><div class="thread-line">${threadMark}</div><p>You bring the ideas.<br>We’ll keep the thread.</p><span>Stay present. Sound like you.</span></div></aside><div class="workspace"><header><span>THE SPEAKING STUDIO</span><span class="connection"><i class="${health ? "" : "offline"}"></i>${health ? "Connected" : "Connecting"}</span></header><main id="main" tabindex="-1">${error ? `<div class="alert" role="alert"><span>${esc(error)}</span>${button("dismiss", "Dismiss", "text")}</div>` : ""}${message ? `<p class="notice" role="status">${esc(message)}</p>` : ""}${stage === "prepare" ? prepareView() : stage === "setup" ? setupView() : stage === "speak" ? speakingView() : recapView()}</main><footer><span>thread. &nbsp; Keep your flow.</span><span>Your voice leads the way.</span></footer></div>`;
 }
 function intro(kicker: string, title: string, desc: string) {
-  return `<div class="intro"><span class="eyebrow">${kicker}</span><h1>${title}</h1><p>${desc}</p></div>`;
+  return `<div class="intro"><div class="intro-copy"><span class="eyebrow">${kicker}</span><h1>${title}</h1><p>${desc}</p></div>${threadArtwork}</div>`;
 }
 function prepareView() {
-  return `${intro("01 / PREPARE", "Good ideas.<br>A little structure.", "Build a few anchors for your talk. You can always find your own way between them.")}<div class="prepare-grid"><section><div class="section-heading"><h2>Your talking points <span class="number-badge">${cards.length}</span></h2><div class="heading-actions">${button("import", "⇪ Import slides or docs", "secondary", busy || !health)}${button("add", "＋ Add idea", "secondary", busy || cards.length >= 12)}</div></div><div class="idea-list">${
+  return `${intro("01 / PREPARE", "Find your rhythm.<br>Keep your thread.", "Build a few anchors for your talk. You can always find your own way between them.")}<div class="prepare-grid"><section><div class="section-heading"><h2>Your talking points <span class="number-badge">${cards.length}</span></h2><div class="heading-actions">${button("import", "⇪ Import slides or docs", "secondary", busy || !health)}${button("add", "＋ Add idea", "secondary", busy || cards.length >= 12)}</div></div><div class="idea-list">${
     ordered()
       .map(
         (c, i) =>

@@ -27,6 +27,12 @@ VOICE_PROVIDER=mock COVERAGE_PROVIDER=mock npm start
 
 Keyboard shortcuts: H or C for Hint, M for More, Right Arrow for Next Idea. Shortcuts ignore editing controls, links, buttons, dialogs, held keys, and modifier combinations.
 
+## Visual theme
+
+The speaking studio theme uses warm paper, plum/lilac surfaces, apricot accents, serif display headings, and a continuous-loop Thread mark. Artwork is inline SVG and fonts use local system fallbacks; there are no external font/image requests or added dependencies. The theme changes presentation only: session handling, action hooks, voice integration, coverage, and keyboard controls are preserved.
+
+Verified the redesign at desktop size and 390×844: adding/saving/deleting/reordering ideas, audio setup and mock preview, Hint/More/Next, coverage-driven advancement, Pause/Resume, End, and recap. No horizontal overflow or browser console warnings/errors were observed. `npm test` (36 passing), type checking, and both browser builds passed. Browser regression checks used practice providers; live microphone/earbud hardware was not retested for this visual change.
+
 ## Integration boundaries
 
 - `src/ui/app.ts`: Client rendering, approved outline edits, HTTP commands, SSE subscription, user intent/cancellation, device settings, and recap.
