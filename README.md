@@ -6,7 +6,7 @@
 
 You bring the ideas. Speak in your own words. Thread follows along, remembers what you have covered, and helps you find your way back with a few words through an earbud.
 
-> **Status:** Two runnable parts, not yet wired together. (1) Ali's frontend demo (prepare → preflight → speak → recap) with simulated adapters: see [UI setup and integration handoff](docs/ui-integration.md). (2) Nathan's backend (session state, coverage, cue selection) with the voice adapter (ElevenLabs live transcription, cue synthesis, browser playback control) and a developer voice test page: see [backend API](docs/backend-api.md) and [voice adapter](docs/voice.md). Connecting the UI to the live backend and voice adapter is the next integration step.
+> **Status:** The previous product UI has been removed at Ali’s request, pending redesign. The backend, coverage/cue logic, ElevenLabs voice adapters, and developer voice test page remain available. See [backend API](docs/backend-api.md), [voice adapter](docs/voice.md), and [UI handoff](docs/ui-integration.md).
 
 ## The problem we are solving
 
@@ -268,13 +268,11 @@ Requires Node.js 22+.
 npm install
 cp .env.example .env   # optional: ELEVENLABS_API_KEY for live voice, ANTHROPIC_API_KEY + COVERAGE_PROVIDER=claude for semantic coverage
 npm start              # backend + voice on :3000; voice test page at /voice-demo/
-npm run start:ui       # Ali's frontend demo on :3001 (simulated adapters)
-npm test               # backend, voice, and UI tests
+npm test               # backend and voice tests
 npm run typecheck
-npm run check          # UI syntax check
 ```
 
-Without keys, coverage and voice run in clearly labeled simulated modes. Provider keys stay in `.env` on the server; none belong in `public/`. Remaining integration work is in [docs/ui-integration.md](docs/ui-integration.md) and [docs/voice.md](docs/voice.md).
+Without keys, coverage and voice run in clearly labeled simulated modes. Provider keys stay in `.env` on the server; none belong in browser code. Remaining integration work is in [docs/ui-integration.md](docs/ui-integration.md) and [docs/voice.md](docs/voice.md).
 
 Start by claiming a workstream, agreeing on the contracts above, and building the smallest working cue loop. Preserve the product rule throughout:
 

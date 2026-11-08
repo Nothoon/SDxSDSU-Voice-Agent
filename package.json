@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Thread: live speech companion. Backend + voice (src/server, src/shared, src/voice) and UI (public/, server.mjs).",
+  "description": "Thread: live speech companion backend and voice adapters. Product UI pending redesign.",
   "engines": {
     "node": ">=22"
   },
@@ -12,14 +12,10 @@
     "dev": "tsx watch --env-file-if-exists=.env src/server/index.ts",
     "prestart": "npm run build:voice",
     "start": "tsx --env-file-if-exists=.env src/server/index.ts",
-    "test": "tsx --test test/*.test.ts && node --test tests/ui-state.test.mjs",
+    "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "demo:fixtures": "tsx src/server/fixtures/run-demo.ts",
-    "build:voice": "esbuild src/voice/demo/main.ts --bundle --format=esm --target=es2022 --outfile=dist/voice-demo/main.js --log-level=warning",
-    "start:ui": "PORT=${PORT_UI:-3001} node server.mjs",
-    "dev:ui": "PORT=${PORT_UI:-3001} node --watch server.mjs",
-    "check": "node --check server.mjs && node --check public/app.js && node --check public/demo-adapters.js",
-    "test:browser": "node tests/browser.cjs"
+    "build:voice": "esbuild src/voice/demo/main.ts --bundle --format=esm --target=es2022 --outfile=dist/voice-demo/main.js --log-level=warning"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
