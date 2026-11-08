@@ -6,7 +6,7 @@
 
 You bring the ideas. Speak in your own words. Thread follows along, remembers what you have covered, and helps you find your way back with a few words through an earbud.
 
-> **Status:** A runnable frontend demo now implements prepare → preflight → speak → recap on `ali/ui`. Microphone, coverage, connection, and cue audio are explicitly simulated; no live provider integration is claimed. The product specification below remains the target. See [UI setup and integration handoff](docs/ui-integration.md).
+> **Status:** Two runnable parts, not yet wired together. (1) Ali's frontend demo (prepare → preflight → speak → recap) with simulated adapters: see [UI setup and integration handoff](docs/ui-integration.md). (2) Nathan's backend (session state, coverage, cue selection) with the voice adapter (ElevenLabs live transcription, cue synthesis, browser playback control) and a developer voice test page: see [backend API](docs/backend-api.md) and [voice adapter](docs/voice.md). Connecting the UI to the live backend and voice adapter is the next integration step.
 
 ## The problem we are solving
 
@@ -262,16 +262,19 @@ Use a live speaker and live tracking. Keep a recorded backup clearly labeled as 
 
 ## Getting started
 
-Requires Node.js 22+. The frontend demo has no package dependencies or API keys.
+Requires Node.js 22+.
 
 ```sh
-npm start
-# Open http://localhost:3000
-npm run check
-npm test
+npm install
+cp .env.example .env   # optional: ELEVENLABS_API_KEY for live voice, ANTHROPIC_API_KEY + COVERAGE_PROVIDER=claude for semantic coverage
+npm start              # backend + voice on :3000; voice test page at /voice-demo/
+npm run start:ui       # Ali's frontend demo on :3001 (simulated adapters)
+npm test               # backend, voice, and UI tests
+npm run typecheck
+npm run check          # UI syntax check
 ```
 
-The static Node server is a local frontend preview, not Nathan's backend. No provider keys belong in `public/`. A lockfile and environment example are unnecessary until dependencies or server integrations are added. Browser checks and remaining integration work are documented in [docs/ui-integration.md](docs/ui-integration.md).
+Without keys, coverage and voice run in clearly labeled simulated modes. Provider keys stay in `.env` on the server; none belong in `public/`. Remaining integration work is in [docs/ui-integration.md](docs/ui-integration.md) and [docs/voice.md](docs/voice.md).
 
 Start by claiming a workstream, agreeing on the contracts above, and building the smallest working cue loop. Preserve the product rule throughout:
 

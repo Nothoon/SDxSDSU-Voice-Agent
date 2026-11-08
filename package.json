@@ -1,16 +1,34 @@
 {
-  "name": "thread-speech-assistant",
+  "name": "thread",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Thread: live speech companion. Backend + voice (src/server, src/shared, src/voice) and UI (public/, server.mjs).",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "node --watch server.mjs",
-    "start": "node server.mjs",
+    "predev": "npm run build:voice",
+    "dev": "tsx watch --env-file-if-exists=.env src/server/index.ts",
+    "prestart": "npm run build:voice",
+    "start": "tsx --env-file-if-exists=.env src/server/index.ts",
+    "test": "tsx --test test/*.test.ts && node --test tests/ui-state.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "demo:fixtures": "tsx src/server/fixtures/run-demo.ts",
+    "build:voice": "esbuild src/voice/demo/main.ts --bundle --format=esm --target=es2022 --outfile=dist/voice-demo/main.js --log-level=warning",
+    "start:ui": "PORT=${PORT_UI:-3001} node server.mjs",
+    "dev:ui": "PORT=${PORT_UI:-3001} node --watch server.mjs",
     "check": "node --check server.mjs && node --check public/app.js && node --check public/demo-adapters.js",
-    "test": "node --test tests/ui-state.test.mjs",
     "test:browser": "node tests/browser.cjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }
