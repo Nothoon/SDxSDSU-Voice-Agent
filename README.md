@@ -184,14 +184,21 @@ Validate this output server-side. Model confidence is a useful signal, not a cal
 
 ## Team workstreams
 
-Combine roles as needed; agree on the data contracts and demo outline first.
+These are the assigned owners. **Every coding agent must read [AGENTS.md](AGENTS.md), then its owner's role brief before starting.**
 
-| Workstream | First deliverable | Can start with |
-| --- | --- | --- |
-| Experience | Outline editor and speech screen with Cue/More/Pause/End | Fake transcript and cue responses |
-| Audio | Mic → transcription → cue playback with interruption | Fixed approved cue audio |
-| Intelligence | Coverage updates and deterministic cue selection | Transcript fixtures and example cards |
-| Integration and demo | Connect state, handle failures, run acceptance cases | Shared contracts and one demo pitch |
+| Owner | Workstream | First deliverable | Agent brief |
+| --- | --- | --- | --- |
+| **Ali** | UI, speaker experience, and integration coordination | Editable outline and speaking screen using mock transcript/coverage/cue data | [Ali — UI](docs/roles/ali-ui.md) |
+| **Nathan** | Daytona, backend, session state, coverage tracking, and cue selection | Backend running in Daytona; sample transcripts update coverage and return the correct cue | [Nathan — Daytona and backend](docs/roles/nathan-daytona.md) |
+| **Vineet** | ElevenLabs transcription and cue synthesis; browser voice adapter | Real mic input emits transcript segments; approved cue audio plays and stops on speaker resumption | [Vineet — ElevenLabs](docs/roles/vineet-elevenlabs.md) |
+
+Ali owns the visual controls; Vineet owns the audio behavior behind those controls; Nathan owns application state and intelligence. Nathan owns the server credential boundary, while Vineet implements the ElevenLabs provider adapter. Keep shared contract changes coordinated through Nathan and review them with both other owners.
+
+**Chosen tool responsibilities:** ElevenLabs handles live speech-to-text and cue text-to-speech. Daytona runs the shared application/backend sandbox and provides the team preview. A separately chosen model handles semantic coverage; Daytona is infrastructure, not the coverage model.
+
+**First joint checkpoint:** Open the Daytona preview, speak one outlined idea, see it marked covered, press Cue, and hear a reminder for the next uncovered idea through an earbud. Ali coordinates this integration check; each owner fixes their component.
+
+These assignments describe ownership, not completed implementation. The role briefs include copyable starting prompts for each person's agent.
 
 ### Build sequence
 
