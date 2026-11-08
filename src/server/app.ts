@@ -8,6 +8,8 @@ import { MockVoiceProvider } from "./voice/mock.js";
 import type { VoiceProvider } from "./voice/provider.js";
 import { voiceRoutes } from "./voice/routes.js";
 
+import { uiRoutes } from "../ui/routes.js";
+
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_SESSIONS = 50;
 
@@ -103,6 +105,7 @@ export function createApp(options: { adapter: () => CoverageAdapter; voice?: Voi
       return STREAMING;
     }],
     ...voiceRoutes(get, voice),
+    ...uiRoutes,
   ];
 
   const server = createServer(async (req, res) => {

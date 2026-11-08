@@ -6,7 +6,7 @@
 
 You bring the ideas. Speak in your own words. Thread follows along, remembers what you have covered, and helps you find your way back with a few words through an earbud.
 
-> **Status:** The previous product UI has been removed at Ali’s request, pending redesign. The backend, coverage/cue logic, ElevenLabs voice adapters, and developer voice test page remain available. See [backend API](docs/backend-api.md), [voice adapter](docs/voice.md), and [UI handoff](docs/ui-integration.md).
+> **Status:** The replacement frontend is integrated with Nathan’s backend and Vineet’s voice controller. Run `npm start` and open `/` for the product flow: ideas → setup → speaking → recap. See [UI setup and handoff](docs/ui-integration.md), [backend API](docs/backend-api.md), and [voice adapter](docs/voice.md). Provider-free practice mode is visibly simulated; live microphone/earbud verification remains outstanding.
 
 ## The problem we are solving
 
@@ -267,8 +267,8 @@ Requires Node.js 22+.
 ```sh
 npm install
 cp .env.example .env   # optional: ELEVENLABS_API_KEY for live voice, ANTHROPIC_API_KEY + COVERAGE_PROVIDER=claude for semantic coverage
-npm start              # backend + voice on :3000; voice test page at /voice-demo/
-npm test               # backend and voice tests
+npm start              # integrated UI at / on :3000; developer voice harness at /voice-demo/
+npm test               # backend, voice, and UI integration tests
 npm run typecheck
 ```
 

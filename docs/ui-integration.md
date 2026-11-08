@@ -1,17 +1,56 @@
-# Ali UI: redesign handoff
+# Ali UI: integrated frontend
 
-Ali requested removal of the previous frontend. Its assets, simulated UI adapters, standalone static server, and UI-only tests have been removed. No replacement product UI is included in this change.
+The replacement UI lives in `src/ui/` and is served at `/` by Nathan's existing server. It replaces the removed `public/` demo. Backend session/coverage logic and Vineet's voice controller are reused directly.
 
-The backend and ElevenLabs voice implementation remain intact. The `/voice-demo/` page is Vineet’s developer test harness, not the removed product frontend.
+## Run
 
-## Starting the replacement UI
+Node 22+:
 
-- Ali owns the design, frontend controls, and integration coordination. Read the root `AGENTS.md` and `docs/roles/ali-ui.md` first.
-- Inspect `docs/backend-api.md`, `docs/voice.md`, and actual shared types in `src/shared/types.ts` before choosing interfaces. The removed demo adapter is not the live API contract.
-- Preserve Nathan’s backend and Vineet’s voice controller. Build the replacement UI against those interfaces, keeping provider secrets on the server.
-- The Auto Hint / Next Idea proposal is in PR #3. Read that brief when implementing those controls; do not restore the old UI to consume it.
-- Add verified frontend run commands and meaningful UI checks when the replacement exists. There is currently no `start:ui` or browser UI test command.
+```sh
+npm ci
+npm start
+```
 
-## Remaining runnable components
+Open `http://localhost:3000/`, or the root of the existing Daytona preview. Startup builds both browser bundles. `npm run dev` watches server code; after frontend edits run `npm run build:ui` and reload. No separate UI server or new provider keys are needed.
 
-Use Node 22+, run `npm ci`, and run `npm start` for the backend and `/voice-demo/` developer harness. `npm test` runs backend/voice tests; `npm run typecheck` checks TypeScript. See the backend and voice documentation for configuration and provider behavior.
+To test without consuming provider credits:
+
+```sh
+VOICE_PROVIDER=mock COVERAGE_PROVIDER=mock npm start
+```
+
+## User flow
+
+1. **Your ideas:** Load a sample or add/edit/reorder/delete cards. Each has a title, meaning, short approved hint, fuller reminder, and must-mention flag. Choose a duration and Review setup.
+2. **Your setup:** Review session mode. Optional audio hints have an output selector, preview, and an explicit confirmation that the preview was heard. Text hints work with audio off. Live transcription still uses the microphone with audio hints off.
+3. **Your moment:** Hint reminds the current idea, More expands the last presented hint, and Next Idea selects the next later unfinished card and requests its approved short hint. Manual selection revisits any card without changing coverage. Pause/Resume and End call both the backend and voice lifecycle. The recap uses server counts and coverage.
+
+Keyboard shortcuts: H or C for Hint, M for More, Right Arrow for Next Idea. Shortcuts ignore editing controls, links, buttons, dialogs, held keys, and modifier combinations.
+
+## Integration boundaries
+
+- `src/ui/app.ts`: Client rendering, approved outline edits, HTTP commands, SSE subscription, user intent/cancellation, device settings, and recap.
+- `src/ui/model.ts`: Card validation, forward-only Next selection, shortcut eligibility, and time formatting.
+- `src/ui/routes.ts`: Allowlisted product HTML/CSS/bundle routes only. `src/server/app.ts` adds these to the existing route list; no backend session policy is replaced.
+- Shared contracts remain in `src/shared/types.ts`. Voice input, provider calls, echo handling, and playback stay in Vineet's controller.
+- The UI consumes real `/api/sessions` lifecycle routes and `/events`; state revisions cannot move backward. Stale hint results after new intent, new finalized speech, Pause, End, or session changes are discarded. Pause/End stay available during hint requests.
+- Next uses the existing `/select` then `/cue` routes. Focus is separate from coverage in the UI; selection does not claim the speaker covered a point. This is a compatibility implementation until Nathan provides an authoritative active-idea/Next command. The backend's `selectedCardId` persists and manual focus is not automatically inferred from reordered speech.
+- More is cleared after manual focus changes or new speech, so it cannot unexpectedly expand an earlier card.
+- On microphone startup failure, the UI stops input and attempts to pause the backend. If a lifecycle request fails, input is still stopped and End can be retried. Text hints remain visible when audio fails.
+- End closes the event stream and mic/controller; the server clears transcript buffers. The outline stays in browser memory for another attempt. Refresh resets the frontend. No persistence was added.
+
+## Provider modes and remaining feature work
+
+`/api/health` chooses live or simulated input. With mock voice, the microphone is never opened; typed practice speech is passed through the real voice adapter to the backend. Mock audio is a placeholder tone, and mock coverage is word matching. These are visibly labeled and do not establish live speech quality.
+
+The opt-in Auto Hint proposal remains in PR #3. This UI implements manual Hint and Next using the current main API. It does not add a competing automatic scheduler or claim Auto Hint is implemented. Nathan still owns authoritative focus/inference ordering and eligibility; Vineet owns activity timing. Reconcile those contracts before automatic cues.
+
+## Verification
+
+`npm test` includes backend/voice tests plus UI selection, validation, keyboard eligibility, and same-origin route checks. `npm run typecheck`, `npm run build:ui`, and `npm run build:voice` validate types and browser bundles.
+
+Browser checks passed in the in-app browser against the real local API with mock providers: add/approve an outline, Hint/More/Next, typed-speech coverage updates, Pause disabling hints, Resume, End, recap, and responsive layout at desktop and 390×844 phone sizes, with no horizontal overflow or browser JavaScript errors. Live ElevenLabs speech, real microphone/earbud routing, latency targets, and Daytona-hosted browser behavior still require hardware/provider verification.
+
+## Handoff
+
+Ali owns `src/ui/`. Nathan retains `src/server/`, shared contracts, and Daytona startup. Vineet retains `src/voice/` and speech providers. Build changes reuse the existing esbuild dependency, preserve the lockfile, and add no runtime dependency. The developer `/voice-demo/` remains available.
