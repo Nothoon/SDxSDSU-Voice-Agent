@@ -21,6 +21,7 @@ npm run demo:fixtures  # drives a running server through the demo flow
 | `COVERAGE_PROVIDER` | Behavior |
 | --- | --- |
 | `mock` (default) | **SIMULATED.** Word-overlap heuristic; weak on paraphrase. `providers.coverage` reports `degraded`. |
+| `openai` | OpenAI Responses API (`OPENAI_COVERAGE_MODEL`, default `gpt-5.5`), low reasoning effort, strict JSON schema, `store: false`. Same prompt and validation as `claude`. Requires `OPENAI_API_KEY`. Live check: paraphrased speech marked covered in about 2 s per finalized segment. |
 | `claude` | Claude (`COVERAGE_MODEL`, default `claude-opus-5-5`) with structured output, low effort, and server-side refusal fallback. Requires `ANTHROPIC_API_KEY`. |
 
 ### Outline import provider (slides/docs → talking points)
@@ -50,11 +51,11 @@ All under `/api`. Errors return `{ "error": string }` with 400, 404, or 409 (out
 | POST | `/sessions/:id/approve` | | `SessionState` (`draft → ready`) |
 | POST | `/sessions/:id/start` \| `pause` \| `resume` \| `end` | | `SessionState` |
 | POST | `/sessions/:id/segments` | `{ segment }` or `{ segments: [] }` | `{ accepted, ignored }` |
-| POST | `/sessions/:id/cue` | `{ level: "short" \| "expanded" }` | `CueResponse` |
+| POST | `/sessions/:id/cue` | `{ level: "short" \| "expanded" }`, or `{ source: "auto" }` for Auto Hint | `CueResponse` (with `source`). An automatic request returns 409 with a readable reason when tracking is uncertain, coverage has not settled within 2.5 s, STT/coverage is disconnected, or one played in the last 10 s |
 | POST | `/sessions/:id/select` | `{ cardId \| null }` | `SessionState` |
 | POST | `/sessions/:id/coverage` | `{ cardId, status }` | `SessionState` (manual correction) |
 | POST | `/sessions/:id/providers` | `{ provider: "stt" \| "tts", status }` | `SessionState` |
-| GET | `/sessions/:id/recap` | | `SessionRecap` |
+| GET | `/sessions/:id/recap` | | `SessionRecap` (`cueRequests` counts manual requests; `autoHints` counts automatic ones) |
 | GET | `/sessions/:id/transcript` | | `{ segments }` (debug view only) |
 | GET | `/sessions/:id/events` | | SSE stream of `SessionEvent` |
 | POST | `/sessions/:id/voice/stt-token` | | `{ token, wsUrl, simulated }` single-use ElevenLabs STT token ([voice.md](voice.md)) |

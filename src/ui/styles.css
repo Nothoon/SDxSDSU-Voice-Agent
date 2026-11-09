@@ -1795,3 +1795,7 @@ footer { color: #81707d; font-size: 10px; }
   .lifecycle-controls { background: #f7f3edf5; }
   .recap-stats strong { font-size: 32px; }
 }
+
+/* Opt-in Auto Hint: toggle and quiet status under the speaking controls. */
+.auto-hint-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 0.9rem; color: var(--muted, inherit); }
+.auto-hint-line [role="status"] { min-width: 0; }

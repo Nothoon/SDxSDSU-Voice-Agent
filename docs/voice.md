@@ -108,3 +108,36 @@ The controller never chooses a cue or calls `/cue`, `/start`, `/pause` or `/end`
 - Live TTS, and whether the default voice ID `JBFqnCBsd6RMkjVDRZzb` is valid for the account.
 - Real-earbud routing, the VAD thresholds against real rooms and voices, echo behavior with speakers instead of an earbud, and the 500 ms start and 250 ms stop targets.
 - The Daytona preview from an actual browser (`getUserMedia` needs HTTPS, which the preview provides).
+
+## Auto Hint
+
+Opt-in, off by default for each session. Spec: [docs/features/auto-hint-next-idea.md](features/auto-hint-next-idea.md).
+
+**Who decides what:**
+- **When** (voice controller, the only timer): `AutoHintScheduler` in `src/voice/core/autohint.ts`, fed by the mic VAD's speech start and stop. It never relies on missing transcripts, and no model judges whether the speaker is stuck. Defaults are starting values to tune in rehearsal:
+  - 3.5 s of continuous silence triggers a hint.
+  - At least 1 s of speaker speech is needed since the start, a resume, toggling on, or the last hint.
+  - 10 s minimum between automatic hints.
+  - It waits up to 2.5 s for a transcript still in progress, then gives up on that pause.
+- **Whether** (server): `POST /cue` with `{ source: "auto" }`. It waits up to 2.5 s for coverage to settle, then returns 409 if tracking isn't `ok`, STT or coverage is disconnected, or an automatic hint played in the last 10 s. Manual hints are never gated this way.
+- **What** (server + UI): the approved short cue for the current idea. If that idea is already covered, the next uncovered idea forward, as with Next Idea. Past the end of the outline it stays silent.
+
+**Controller API:**
+- `setAutoHint(enabled)`, plus `autoHint` and `autoHintStatus` events (`off`, `waiting`, `armed`).
+- `playCue(cue, { auto: true, triggeredAt })` drops an automatic cue if the speaker spoke after the pause began.
+- `markHintShown()` for text-only hints.
+- Turning Auto Hint off stops a playing automatic cue, not a manual one. Pause and End clear the timer, and Resume needs fresh speech before it can fire.
+- In simulated (typed) mode, practice speech lasts 250 ms per word, so typed sentences can arm it.
+
+**Verified:**
+- `test/autohint.test.ts` uses fake clocks for every timing case in the spec table, plus the server gate: uncertain, unavailable or disconnected tracking, unsettled coverage, cooldown, and the paused state.
+- Headless Chromium, live ElevenLabs STT and OpenAI coverage, a fake mic playing one spoken sentence followed by 8 s of silence, Auto Hint on in the speaker UI:
+  - About 4 s after the speech ended, "Your pitch story" played by itself.
+  - Continued silence did not repeat it.
+  - After the next stretch of speech, a second automatic hint came 11.5 s after the first.
+  - The recap showed 2 automatic hints, with no JS errors.
+
+**Not verified:**
+- A real microphone, room noise and an earbud. VAD thresholds and the 3.5 s pause need rehearsal.
+- Whether echo from cue audio played through speakers (not an earbud) can count as speaker speech.
+- Next Idea's double-activation and held-key cases in a real browser. The UI already ignores key repeats and blocks input while a cue is busy.

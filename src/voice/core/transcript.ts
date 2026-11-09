@@ -39,6 +39,11 @@ export class TranscriptNormalizer {
     private now: () => number,
   ) {}
 
+  // True while an utterance has partial text but no committed final yet.
+  get pending(): boolean {
+    return this.utteranceStartMs !== null;
+  }
+
   handle(message: ScribeMessage): TranscriptSegment | null {
     if (message.message_type === "partial_transcript") {
       const text = (message.text ?? "").trim();

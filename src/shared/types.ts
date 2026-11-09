@@ -31,6 +31,10 @@ export type CoverageUpdate = {
 
 export type CueLevel = "short" | "expanded";
 
+// "auto": requested by opt-in Auto Hint after a speaker pause. The server may refuse it
+// (409) when tracking is unreliable; manual requests are never gated that way.
+export type CueSource = "manual" | "auto";
+
 export type CueResponse = {
   requestId: string;
   cardId: string | null; // null when every idea is covered
@@ -38,6 +42,7 @@ export type CueResponse = {
   text: string;
   audioUrl?: string; // Text remains usable if audio is unavailable
   stateRevision: number; // Reject stale results before playback
+  source?: CueSource; // Absent on older servers; treat as "manual"
 };
 
 // Session lifecycle is separate from provider connectivity, so a dropped
@@ -87,8 +92,9 @@ export type SessionRecap = {
   partial: string[];
   missedMustMention: string[];
   missed: string[];
-  cueRequests: number;
+  cueRequests: number; // Manual requests only
   expandedRequests: number;
+  autoHints: number;
   durationMs: number;
 };
 

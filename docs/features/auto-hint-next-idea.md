@@ -2,7 +2,9 @@
 
 ## Authorized product change
 
-The user requested an opt-in Auto Hint mode and a dedicated Next Idea button. This brief updates the previous manual-only MVP policy. Deliver the features in the existing application; do not create another app. This file is an implementation specification, not evidence that either feature is already working.
+The user requested an opt-in Auto Hint mode and a dedicated Next Idea button. This brief updates the previous manual-only MVP policy. Deliver the features in the existing application; do not create another app. This file is an implementation specification.
+
+**Implementation status (branch `nathan/auto-hint`):** Auto Hint is implemented. The pause scheduler lives in the voice controller (`src/voice/core/autohint.ts`, the single timer owner), the eligibility gate in the session (`requestAutoCue`, `POST /cue` with `source: "auto"`), and the toggle/status in the speaker UI. Hint, Next Idea, More, and forward-only focus already existed in the UI (`src/ui/model.ts`); focus is still tracked client-side via `selectedCardId` rather than a separate server-side `activeIdeaId`. Verification and gaps are recorded in [docs/voice.md](../voice.md#auto-hint).
 
 Read AGENTS.md, README.md, docs/ui-integration.md, and your role brief first. Inspect current main and teammate branches. Preserve the current stack and ownership: Ali owns UI, Nathan owns authoritative session state/coverage/selection, Vineet owns speech detection and audio. Record interface changes for all three owners. An integration agent may coordinate the feature across these boundaries; do not overwrite unfinished teammate work.
 

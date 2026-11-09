@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  CueSource,
   CardCoverage,
   CoverageStatus,
   CoverageUpdate,
@@ -26,6 +27,9 @@ export class SessionError extends Error {
     super(message);
   }
 }
+
+const AUTO_HINT_COOLDOWN_MS = 10_000;
+const AUTO_HINT_SETTLE_MS = 2_500;
 
 // Below this, a "covered" judgment is held at "partial" until more speech confirms it.
 const COVERED_MIN_CONFIDENCE = 0.6;
@@ -89,6 +93,8 @@ export class Session {
   private accumulatedMs = 0;
   private listeningSince: number | null = null;
   private cueRequests = 0;
+  private autoHints = 0;
+  private lastAutoHintAt: number | null = null;
   private expandedRequests = 0;
   private listeners = new Set<(event: SessionEvent) => void>();
 
@@ -245,11 +251,14 @@ export class Session {
     return { accepted, ignored: input.length - accepted };
   }
 
-  // Resolves once no coverage evaluation is pending. Used by tests and fixture runs.
-  async settled(): Promise<void> {
+  // Resolves once no coverage evaluation is pending, or after timeoutMs. Returns whether it settled.
+  async settled(timeoutMs = Infinity): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
     while (this.coverageInFlight || this.coverageDirty) {
+      if (Date.now() >= deadline) return false;
       await new Promise((r) => setTimeout(r, 5));
     }
+    return true;
   }
 
   private scheduleCoverage() {
@@ -369,18 +378,19 @@ export class Session {
     this.changed();
   }
 
-  requestCue(level: CueLevel): CueResponse {
+  requestCue(level: CueLevel, source: CueSource = "manual"): CueResponse {
     if (this.lifecycle !== "listening") throw new SessionError("Cues are available only while listening", 409);
-    this.cueRequests++;
+    if (source === "auto") this.autoHints++;
+    else this.cueRequests++;
     if (level === "expanded") this.expandedRequests++;
 
     // More expands the last delivered cue; it never advances to another card.
     if (level === "expanded" && this.lastCue) {
-      return this.deliverCue(this.lastCue.cardId, "expanded");
+      return this.deliverCue(this.lastCue.cardId, "expanded", source);
     }
     // Repeated Cue reuses the current cue until new speech or a manual selection.
     if (level === "short" && this.lastCue && this.lastCueContext === this.cueContext) {
-      return this.deliverCue(this.lastCue.cardId, "short");
+      return this.deliverCue(this.lastCue.cardId, "short", source);
     }
 
     const choice = selectCue({
@@ -391,10 +401,33 @@ export class Session {
       elapsedMs: this.elapsedMs(),
       targetDurationSec: this.targetDurationSec,
     });
-    return this.deliverCue(choice.kind === "card" ? choice.card.id : null, level);
+    return this.deliverCue(choice.kind === "card" ? choice.card.id : null, level, source);
   }
 
-  private deliverCue(cardId: string | null, level: CueLevel): CueResponse {
+  // Opt-in Auto Hint. The voice controller decides *when* (a pause after real speech); the
+  // server decides *whether*: only from settled, reliable tracking, and never more often than
+  // the cooldown. Refusals are 409s the client shows as a quiet status, not an error.
+  async requestAutoCue(): Promise<CueResponse> {
+    if (this.lifecycle !== "listening") throw new SessionError("Cues are available only while listening", 409);
+    if (this.lastAutoHintAt !== null && this.now() - this.lastAutoHintAt < AUTO_HINT_COOLDOWN_MS) {
+      throw new SessionError("Auto hint skipped: one plays at most every 10 seconds", 409);
+    }
+    // Wait briefly for the latest speech to be evaluated so the hint reflects it.
+    const settled = await this.settled(AUTO_HINT_SETTLE_MS);
+    if (this.lifecycle !== "listening") throw new SessionError("Cues are available only while listening", 409);
+    if (!settled) throw new SessionError("Auto hint skipped: tracking is still catching up", 409);
+    if (
+      this.trackingStatus !== "ok" ||
+      this.providers.coverage === "disconnected" ||
+      this.providers.stt === "disconnected"
+    ) {
+      throw new SessionError("Auto hint skipped: tracking is uncertain. Ask for a hint or pick an idea", 409);
+    }
+    this.lastAutoHintAt = this.now();
+    return this.requestCue("short", "auto");
+  }
+
+  private deliverCue(cardId: string | null, level: CueLevel, source: CueSource = "manual"): CueResponse {
     const card = cardId ? this.outline.find((c) => c.id === cardId) : undefined;
     // Cue text always comes from approved card fields, never from the model.
     const text = !card ? ALL_COVERED_TEXT : level === "short" ? card.cue : card.expandedCue;
@@ -405,6 +438,7 @@ export class Session {
       level,
       text,
       stateRevision: this.stateRevision,
+      source,
     };
     this.lastCue = cue;
     this.lastCueContext = this.cueContext;
@@ -424,6 +458,7 @@ export class Session {
       missed: by("uncovered").map((c) => c.id),
       cueRequests: this.cueRequests,
       expandedRequests: this.expandedRequests,
+      autoHints: this.autoHints,
       durationMs: this.elapsedMs(),
     };
   }

@@ -2,6 +2,7 @@ import { createApp } from "./app.js";
 import type { CoverageAdapter } from "./coverage/adapter.js";
 import { ClaudeCoverageAdapter } from "./coverage/claude.js";
 import { MockCoverageAdapter } from "./coverage/mock.js";
+import { OpenAICoverageAdapter } from "./coverage/openai.js";
 import { ClaudeOutlineGenerator } from "./outline/claude.js";
 import type { OutlineGenerator } from "./outline/generator.js";
 import { MockOutlineGenerator } from "./outline/mock.js";
@@ -12,16 +13,21 @@ import type { VoiceProvider } from "./voice/provider.js";
 
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? "0.0.0.0";
-const provider = process.env.COVERAGE_PROVIDER ?? "mock";
-const model = process.env.COVERAGE_MODEL ?? "claude-opus-5-5";
+const provider = process.env.COVERAGE_PROVIDER || "mock";
+let model = "";
 
 let adapter: CoverageAdapter;
-if (provider === "claude") {
+if (provider === "openai") {
+  if (!process.env.OPENAI_API_KEY) throw new Error("COVERAGE_PROVIDER=openai requires OPENAI_API_KEY");
+  model = process.env.OPENAI_COVERAGE_MODEL || "gpt-5.5";
+  adapter = new OpenAICoverageAdapter(model, process.env.OPENAI_API_KEY);
+} else if (provider === "claude") {
+  model = process.env.COVERAGE_MODEL || "claude-opus-5-5";
   adapter = new ClaudeCoverageAdapter(model);
 } else if (provider === "mock") {
   adapter = new MockCoverageAdapter();
 } else {
-  throw new Error(`Unknown COVERAGE_PROVIDER "${provider}" (expected claude or mock)`);
+  throw new Error(`Unknown COVERAGE_PROVIDER "${provider}" (expected openai, claude, or mock)`);
 }
 
 // Voice defaults to ElevenLabs when a key is configured, otherwise the SIMULATED mock.

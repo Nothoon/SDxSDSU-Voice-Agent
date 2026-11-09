@@ -1,4 +1,5 @@
 import type { CueResponse, ProviderStatus, TranscriptSegment } from "../shared/types.js";
+import type { AutoHintStatus } from "./core/autohint.js";
 
 // Voice controller contract (Vineet → Ali). Ali owns the buttons; this owns the
 // microphone, transcription, and cue playback behind them. The controller never chooses
@@ -28,6 +29,15 @@ export type VoiceEvents = {
   playback: (event: PlaybackEvent) => void;
   level: (rms: number) => void; // microphone level, ~20 Hz, for a meter
   error: (message: string) => void;
+  // Opt-in Auto Hint: a qualifying pause happened. Ask the backend for an automatic cue
+  // ({ source: "auto" }) and pass the result to playCue(cue, { auto: true, triggeredAt: at }).
+  autoHint: (trigger: { at: number }) => void;
+  autoHintStatus: (status: AutoHintStatus) => void;
+};
+
+export type PlayOptions = {
+  auto?: boolean; // automatic cue: dropped if the speaker spoke after triggeredAt
+  triggeredAt?: number; // the autoHint event's `at`
 };
 
 export interface VoiceController {
@@ -42,7 +52,11 @@ export interface VoiceController {
   end(): void;
   // Plays a backend CueResponse. Resolves with how playback finished. Never queues:
   // a newer cue supersedes an older one, and stale revisions are ignored.
-  playCue(cue: CueResponse): Promise<PlaybackStopReason>;
+  playCue(cue: CueResponse, options?: PlayOptions): Promise<PlaybackStopReason>;
+  // Opt-in, off by default. Turning it off stops a playing automatic cue (not a manual one).
+  setAutoHint(enabled: boolean): void;
+  // Tell the scheduler a hint was shown without audio, so silence doesn't trigger another.
+  markHintShown(): void;
   stopPlayback(): void;
   // Plays a fixed phrase to check earbud routing and volume.
   preview(): Promise<PlaybackStopReason>;

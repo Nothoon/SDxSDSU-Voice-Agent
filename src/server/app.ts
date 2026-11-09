@@ -116,6 +116,7 @@ export function createApp(options: {
       return get(params[0]).addSegments(segments);
     }],
     ["POST", /^\/api\/sessions\/([\w-]+)\/cue$/, ({ params, body }) => {
+      if (body?.source === "auto") return get(params[0]).requestAutoCue();
       const level: CueLevel = body?.level === "expanded" ? "expanded" : "short";
       return get(params[0]).requestCue(level);
     }],

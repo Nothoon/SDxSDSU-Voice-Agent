@@ -10,7 +10,7 @@ You bring the ideas. Speak in your own words. Thread follows along, remembers wh
 
 ## Current feature assignment
 
-The user has authorized **opt-in Auto Hint** and a dedicated **Next Idea** button. Read [the implementation brief](docs/features/auto-hint-next-idea.md) for the current behavior, state rules, ownership, and acceptance checks. It supersedes older manual-only cue behavior below and in the role briefs. These features are specified, not yet implemented; Auto Hint defaults off. Hint reminds the current idea; Next Idea advances focus without claiming coverage; More expands the last delivered cue.
+The user has authorized **opt-in Auto Hint** and a dedicated **Next Idea** button. Read [the implementation brief](docs/features/auto-hint-next-idea.md) for the current behavior, state rules, ownership, and acceptance checks. It supersedes older manual-only cue behavior below and in the role briefs. Auto Hint is implemented (opt-in, off by default; see [voice adapter](docs/voice.md#auto-hint) for what is verified). Hint, Next Idea, and More are in the speaker UI. Hint reminds the current idea; Next Idea advances focus without claiming coverage; More expands the last delivered cue.
 
 ## The problem we are solving
 

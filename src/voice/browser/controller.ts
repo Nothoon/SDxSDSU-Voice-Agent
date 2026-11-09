@@ -1,8 +1,9 @@
 import type { CueResponse, ProviderStatus, TranscriptSegment } from "../../shared/types.js";
+import { AutoHintScheduler, DEFAULT_AUTO_HINT, type AutoHintOptions, type AutoHintStatus } from "../core/autohint.js";
 import { stripEcho, type PlaybackInterval } from "../core/echo.js";
 import { SCRIBE_ERROR_TYPES, TranscriptNormalizer, type ScribeMessage } from "../core/transcript.js";
 import { EnergyVad } from "../core/vad.js";
-import type { PlaybackEvent, PlaybackStopReason, VoiceController, VoiceEvents } from "../types.js";
+import type { PlaybackEvent, PlaybackStopReason, PlayOptions, VoiceController, VoiceEvents } from "../types.js";
 import { MicCapture, pcmToBase64, type MicFrame } from "./mic.js";
 
 export type VoiceOptions = {
@@ -12,6 +13,7 @@ export type VoiceOptions = {
   // Playback is unchanged. Use for UI work and demos without credentials.
   simulated?: boolean;
   maxGapWaitMs?: number; // how long a requested cue waits for the speaker to pause
+  autoHint?: Partial<AutoHintOptions>; // timing for opt-in Auto Hint (starting values, tune in rehearsal)
 };
 
 type Job = {
@@ -20,12 +22,14 @@ type Job = {
   resolve: (reason: PlaybackStopReason) => void;
   playing: boolean;
   interval: PlaybackInterval | null;
+  auto: boolean;
 };
 
 const PREVIEW_TEXT = "This is your Thread cue.";
 const MAX_PENDING_FRAMES = 40; // 2 s of audio buffered while the STT socket connects
 const MAX_RECONNECTS = 3;
 const PARTIAL_THROTTLE_MS = 300;
+const AUTO_TICK_MS = 200;
 
 export function createVoiceController(options: VoiceOptions = {}): ThreadVoiceController {
   return new ThreadVoiceController(options);
@@ -57,11 +61,16 @@ export class ThreadVoiceController implements VoiceController {
   private pendingPartial: TranscriptSegment | null = null;
   private lastPartialAt = 0;
   private posting: Promise<unknown> = Promise.resolve();
+  private scheduler: AutoHintScheduler;
+  private autoTimer: ReturnType<typeof setInterval> | null = null;
+  private autoStatus: AutoHintStatus = "off";
+  private lastSpeechStartAt = -1;
 
   constructor(private options: VoiceOptions = {}) {
     this.simulated = !!options.simulated;
     this.api = (options.apiBase ?? "").replace(/\/$/, "");
     this.audio.preload = "auto";
+    this.scheduler = new AutoHintScheduler({ ...DEFAULT_AUTO_HINT, ...options.autoHint });
   }
 
   on<E extends keyof VoiceEvents>(event: E, listener: VoiceEvents[E]): () => void {
@@ -129,6 +138,9 @@ export class ThreadVoiceController implements VoiceController {
 
   private async openInput() {
     this.reconnects = 0;
+    this.scheduler.reset();
+    this.autoTimer ??= setInterval(() => this.autoTick(), AUTO_TICK_MS);
+    this.emitAutoStatus();
     if (this.simulated) {
       this.emit("connection", "degraded", "SIMULATED input: typed speech, no microphone");
       void this.reportStt("degraded");
@@ -151,6 +163,10 @@ export class ThreadVoiceController implements VoiceController {
   }
 
   private closeInput() {
+    if (this.autoTimer) clearInterval(this.autoTimer);
+    this.autoTimer = null;
+    this.scheduler.reset();
+    this.emitAutoStatus();
     if (this.partialTimer) clearTimeout(this.partialTimer);
     this.partialTimer = null;
     this.pendingPartial = null;
@@ -298,6 +314,8 @@ export class ThreadVoiceController implements VoiceController {
   // ---- Speaker activity ----
 
   private onSpeechStart() {
+    this.lastSpeechStartAt = this.now();
+    this.scheduler.speechStart(this.now());
     this.emit("speaking", true);
     const job = this.job;
     if (job?.playing) {
@@ -308,8 +326,37 @@ export class ThreadVoiceController implements VoiceController {
   }
 
   private onSpeechEnd() {
+    this.scheduler.speechEnd(this.now());
+    this.emitAutoStatus();
     this.emit("speaking", false);
     this.flushGapWaiters();
+  }
+
+  // ---- Opt-in Auto Hint ----
+
+  setAutoHint(enabled: boolean) {
+    this.scheduler.setEnabled(enabled);
+    if (!enabled && this.job?.auto) this.finishJob(this.job, "stopped");
+    this.emitAutoStatus();
+  }
+
+  markHintShown() {
+    this.scheduler.delivered();
+    this.emitAutoStatus();
+  }
+
+  private autoTick() {
+    if (this.mode !== "listening") return;
+    const fire = this.scheduler.tick(this.now(), this.normalizer?.pending ?? false);
+    this.emitAutoStatus();
+    if (fire) this.emit("autoHint", { at: this.now() });
+  }
+
+  private emitAutoStatus() {
+    const status = this.scheduler.status();
+    if (status === this.autoStatus) return;
+    this.autoStatus = status;
+    this.emit("autoHintStatus", status);
   }
 
   private flushGapWaiters() {
@@ -319,7 +366,7 @@ export class ThreadVoiceController implements VoiceController {
 
   // SIMULATED input only: emits typed text as speech, including speaker activity, so
   // interruption and coverage can be exercised without a microphone.
-  async simulateSpeech(text: string, durationMs = 900): Promise<void> {
+  async simulateSpeech(text: string, durationMs = Math.max(900, text.trim().split(/\s+/).length * 250)): Promise<void> {
     if (!this.simulated) throw new Error("simulateSpeech requires simulated: true");
     if (this.mode !== "listening" || !text.trim()) return;
     const normalizer = (this.normalizer ??= new TranscriptNormalizer(`${this.runId}-sim`, this.now));
@@ -337,10 +384,15 @@ export class ThreadVoiceController implements VoiceController {
 
   // ---- Cue playback ----
 
-  async playCue(cue: CueResponse): Promise<PlaybackStopReason> {
+  async playCue(cue: CueResponse, options: PlayOptions = {}): Promise<PlaybackStopReason> {
     if (cue.stateRevision <= this.lastRevision) return this.report(cue, "stale");
     this.lastRevision = cue.stateRevision;
     if (this.mode === "paused") return this.report(cue, "not-listening");
+    // An automatic cue is obsolete once the speaker has spoken again since the pause.
+    if (options.auto && options.triggeredAt !== undefined && this.lastSpeechStartAt > options.triggeredAt) {
+      return this.report(cue, "speaker-resumed");
+    }
+    if (cue.cardId) this.markHintShown();
     if (!cue.cardId || !this.sessionId) {
       this.cancelJob("superseded");
       return this.report(cue, "no-audio");
@@ -348,7 +400,7 @@ export class ThreadVoiceController implements VoiceController {
     const url =
       `${this.api}/api/sessions/${this.sessionId}/voice/cue-audio?cardId=${encodeURIComponent(cue.cardId)}` +
       `&level=${cue.level}&v=${hash(cue.text)}`;
-    return this.runJob(cue, url);
+    return this.runJob(cue, url, !!options.auto);
   }
 
   async preview(): Promise<PlaybackStopReason> {
@@ -371,11 +423,11 @@ export class ThreadVoiceController implements VoiceController {
     if (this.job) this.finishJob(this.job, reason);
   }
 
-  private runJob(cue: CueResponse, url: string): Promise<PlaybackStopReason> {
+  private runJob(cue: CueResponse, url: string, auto = false): Promise<PlaybackStopReason> {
     const requestedAt = performance.now();
     this.cancelJob("superseded"); // Never overlap or queue cue audio.
     return new Promise((resolve) => {
-      const job: Job = { cue, abort: new AbortController(), resolve, playing: false, interval: null };
+      const job: Job = { cue, abort: new AbortController(), resolve, playing: false, interval: null, auto };
       this.job = job;
       void (async () => {
         try {

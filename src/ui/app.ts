@@ -43,6 +43,15 @@ let focusId: string | null = null,
   clockAt = Date.now(),
   streamOk = true,
   transportStopped = false;
+// Opt-in Auto Hint: off by default for each new session.
+let autoHint = false,
+  autoStatus: "off" | "waiting" | "armed" = "off";
+const autoLabel = () =>
+  !autoHint
+    ? "Auto hint is off"
+    : autoStatus === "armed"
+      ? "Auto hint on · a short reminder plays after a pause"
+      : "Auto hint on · starts after you speak";
 // A continuous loop of thread: decorative only, with no interaction hooks.
 const threadMark = `<svg viewBox="0 0 48 48" fill="none" aria-hidden="true" focusable="false"><path d="M8 31c0-8 8-19 16-19 7 0 10 5 10 10 0 9-7 16-13 16-5 0-8-3-8-7 0-8 9-17 17-17 7 0 11 4 11 10 0 8-8 13-17 13H7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>`;
 const threadArtwork = `<div class="intro-art" aria-hidden="true"><svg viewBox="0 0 320 150" fill="none" focusable="false"><path class="art-guide" d="M18 108h284M18 44h284"/><path class="art-thread" d="M18 109c42 0 58-85 109-85 33 0 53 23 53 49s-20 49-43 49c-21 0-36-14-36-34 0-34 41-61 75-61 35 0 53 19 53 42 0 27-24 40-51 40h124"/><circle cx="18" cy="109" r="5" class="art-end"/><circle cx="302" cy="109" r="5" class="art-end"/></svg><span>A LITTLE STRUCTURE. A NATURAL FLOW.</span></div>`;
@@ -148,11 +157,11 @@ function prepareView() {
 }
 function setupView() {
   const simulated = !!health?.voice.simulated;
-  return `${intro("02 / SETUP", "Make yourself<br>comfortable.", "Your ideas are ready. Choose how you’d like Thread to help.")}<div class="setup-grid"><section class="setup-card"><div class="section-heading"><h2>Your listening setup</h2><span class="small-label">${simulated ? "Practice mode" : "ElevenLabs voice"}</span></div><div class="setup-row"><div class="setup-symbol">◉</div><div><h3>${simulated ? "Practice without a microphone" : "Live microphone"}</h3><p>${simulated ? "Live transcription is not configured. Type practice speech during your session." : "Your browser will ask for microphone access when you begin speaking."}</p></div></div><div class="setting-line"><label for="audio"><strong>Hear my hints</strong><span>${simulated ? "Practice audio is a placeholder tone, not a spoken hint." : "Short spoken reminders through your earbud."}</span></label><input id="audio" type="checkbox" role="switch" ${audioEnabled ? "checked" : ""}></div>${audioEnabled ? `<div class="audio-setup"><label for="output">Audio output</label><div class="output-row"><select id="output"><option value="">System default</option>${outputs.map((d) => `<option value="${esc(d.deviceId)}" ${output === d.deviceId ? "selected" : ""}>${esc(d.label || "Audio output")}</option>`).join("")}</select>${button("outputs", "Refresh", "secondary", busy)}</div><p class="fine">Connect an earbud. If your browser cannot select it, use your system sound settings.</p>${button("preview", busy ? "Checking audio…" : previewed ? "✓ Preview again" : "▷ Preview " + (simulated ? "practice tone" : "spoken hint"), "secondary", busy)}<label class="check-label"><input id="heard" type="checkbox" ${previewed ? "checked" : ""}> I heard the preview in my intended output.</label></div>` : '<p class="text-fallback">Text hints stay visible throughout your session.</p>'}<div class="provider-note">${health?.coverage === "mock" ? "Practice tracking uses word matching; it may miss paraphrases." : "Idea tracking follows meaning from your finalized speech."}</div></section><aside class="setup-summary"><span class="eyebrow">YOUR SESSION</span><h2>${cards.length} ideas.<br>Your own words.</h2><ul>${ordered()
+  return `${intro("02 / SETUP", "Make yourself<br>comfortable.", "Your ideas are ready. Choose how you’d like Thread to help.")}<div class="setup-grid"><section class="setup-card"><div class="section-heading"><h2>Your listening setup</h2><span class="small-label">${simulated ? "Practice mode" : "ElevenLabs voice"}</span></div><div class="setup-row"><div class="setup-symbol">◉</div><div><h3>${simulated ? "Practice without a microphone" : "Live microphone"}</h3><p>${simulated ? "Live transcription is not configured. Type practice speech during your session." : "Your browser will ask for microphone access when you begin speaking."}</p></div></div><div class="setting-line"><label for="audio"><strong>Hear my hints</strong><span>${simulated ? "Practice audio is a placeholder tone, not a spoken hint." : "Short spoken reminders through your earbud."}</span></label><input id="audio" type="checkbox" role="switch" ${audioEnabled ? "checked" : ""}></div><div class="setting-line"><label for="autohint"><strong>Auto hint</strong><span>After a pause, hear a short reminder. You can still ask anytime.</span></label><input id="autohint" type="checkbox" role="switch" ${autoHint ? "checked" : ""}></div>${audioEnabled ? `<div class="audio-setup"><label for="output">Audio output</label><div class="output-row"><select id="output"><option value="">System default</option>${outputs.map((d) => `<option value="${esc(d.deviceId)}" ${output === d.deviceId ? "selected" : ""}>${esc(d.label || "Audio output")}</option>`).join("")}</select>${button("outputs", "Refresh", "secondary", busy)}</div><p class="fine">Connect an earbud. If your browser cannot select it, use your system sound settings.</p>${button("preview", busy ? "Checking audio…" : previewed ? "✓ Preview again" : "▷ Preview " + (simulated ? "practice tone" : "spoken hint"), "secondary", busy)}<label class="check-label"><input id="heard" type="checkbox" ${previewed ? "checked" : ""}> I heard the preview in my intended output.</label></div>` : '<p class="text-fallback">Text hints stay visible throughout your session.</p>'}<div class="provider-note">${health?.coverage === "mock" ? "Practice tracking uses word matching; it may miss paraphrases." : "Idea tracking follows meaning from your finalized speech."}</div></section><aside class="setup-summary"><span class="eyebrow">YOUR SESSION</span><h2>${cards.length} ideas.<br>Your own words.</h2><ul>${ordered()
     .map((c) => `<li><span>○</span>${esc(c.title)}</li>`)
     .join(
       "",
-    )}</ul><div class="summary-time">◷ &nbsp;${duration ? formatTime(duration * 1000) + " target" : "No time target"}</div><p class="fine">You control when a hint plays. Pause stops your microphone and cue audio.</p>${button("start", busy ? "Getting ready…" : "Begin speaking <span>→</span>", "primary full", busy || (audioEnabled && !previewed))}${button("back", "← Back to ideas", "text full", busy)}</aside></div>`;
+    )}</ul><div class="summary-time">◷ &nbsp;${duration ? formatTime(duration * 1000) + " target" : "No time target"}</div><p class="fine">${autoHint ? "A hint plays on request, or once after a pause. Speaking again stops it." : "You control when a hint plays."} Pause stops your microphone and cue audio.</p>${button("start", busy ? "Getting ready…" : "Begin speaking <span>→</span>", "primary full", busy || (audioEnabled && !previewed))}${button("back", "← Back to ideas", "text full", busy)}</aside></div>`;
 }
 function speakingView() {
   const current = cards.find((c) => c.id === focusId);
@@ -161,7 +170,7 @@ function speakingView() {
     (c) => state?.coverage[c.id]?.status === "covered",
   ).length;
   const paused = state?.lifecycle === "paused" || transportStopped;
-  return `<div class="speaking-heading"><div><span class="eyebrow">03 / YOUR MOMENT</span><h1>Take the floor.</h1></div><div class="session-badge"><i class="${paused ? "paused" : ""}"></i>${paused ? "Paused" : health?.voice.simulated ? "Practice session" : "Listening"}<span id="timer">${formatTime(state?.elapsedMs || 0)}</span></div></div>${!streamOk ? '<p class="alert" role="status">Reconnecting to your session. Hints use the last confirmed state.</p>' : ""}${state?.trackingStatus !== "ok" ? '<p class="notice">Tracking needs a moment. Your ideas are safe; select one below for a hint.</p>' : ""}<div class="speaking-grid"><section class="speaking-main"><div class="focus-card"><div class="focus-top"><span>${paused ? "TAKE A BREATH" : hint ? "YOUR HINT" : "CURRENT IDEA"}</span><span>${current ? String(ordered().findIndex((c) => c.id === current.id) + 1).padStart(2, "0") : "—"} / ${String(cards.length).padStart(2, "0")}</span></div><h2 aria-live="polite">${paused ? "A moment to pause." : esc(hint || current?.title || "All points covered.")}</h2><p>${paused ? "Resume when you’re ready. Your place is saved." : hint ? esc(current?.title || "Your thread") : esc(current?.meaning || "You’ve shared every idea in your outline.")}</p><div class="wave" aria-hidden="true">${Array.from({ length: 23 }, (_, i) => `<i style="--height:${[10, 18, 8, 26, 14, 32, 20][i % 7]}px"></i>`).join("")}</div><div class="playback" role="status">${esc(playback || "Your voice leads. Ask for a hint when you need one.")}</div></div><div class="speaking-controls">${button("hint", "Hint <kbd>H</kbd>", "primary", busy || cueBusy || !listening() || !focusId)}${button("next", "Next idea <span>→</span>", "secondary", busy || cueBusy || !listening())}${button("more", "More detail", "text", busy || cueBusy || !listening() || !delivered?.cardId)}</div><div class="next-preview"><span>UP NEXT</span><strong>${esc(next?.card?.title || "End of your outline")}</strong><small>Moves on automatically when this idea is covered. Use Next idea to skip ahead.</small></div>${health?.voice.simulated ? `<form id="practice-form" class="practice-input"><label for="practice">Practice speech <span>SIMULATED INPUT · no microphone</span></label><div><input id="practice" name="speech" placeholder="Type what you would say…" required maxlength="3000" ${paused ? "disabled" : ""}><button class="secondary" ${paused || busy ? "disabled" : ""}>Send</button></div><p>Hints use approved text. Audio, if enabled, is a placeholder tone.</p></form>` : ""}<div class="lifecycle-controls">${button(paused ? "resume" : "pause", paused ? "▶ Resume" : "Ⅱ Pause", "secondary", busy || transportStopped)}${button("end", "End session", "text danger", busy)}${button("stop-audio", "Stop hint audio", "text", !listening())}</div></section><aside class="outline-panel"><div class="section-heading"><h2>Your thread</h2><span>${covered}/${cards.length}</span></div><div class="progress"><span style="width:${cards.length ? (covered / cards.length) * 100 : 0}%"></span></div><p class="fine">Select an idea to revisit it. Coverage follows what you say.</p><ol>${ordered()
+  return `<div class="speaking-heading"><div><span class="eyebrow">03 / YOUR MOMENT</span><h1>Take the floor.</h1></div><div class="session-badge"><i class="${paused ? "paused" : ""}"></i>${paused ? "Paused" : health?.voice.simulated ? "Practice session" : "Listening"}<span id="timer">${formatTime(state?.elapsedMs || 0)}</span></div></div>${!streamOk ? '<p class="alert" role="status">Reconnecting to your session. Hints use the last confirmed state.</p>' : ""}${state?.trackingStatus !== "ok" ? '<p class="notice">Tracking needs a moment. Your ideas are safe; select one below for a hint.</p>' : ""}<div class="speaking-grid"><section class="speaking-main"><div class="focus-card"><div class="focus-top"><span>${paused ? "TAKE A BREATH" : hint ? "YOUR HINT" : "CURRENT IDEA"}</span><span>${current ? String(ordered().findIndex((c) => c.id === current.id) + 1).padStart(2, "0") : "—"} / ${String(cards.length).padStart(2, "0")}</span></div><h2 aria-live="polite">${paused ? "A moment to pause." : esc(hint || current?.title || "All points covered.")}</h2><p>${paused ? "Resume when you’re ready. Your place is saved." : hint ? esc(current?.title || "Your thread") : esc(current?.meaning || "You’ve shared every idea in your outline.")}</p><div class="wave" aria-hidden="true">${Array.from({ length: 23 }, (_, i) => `<i style="--height:${[10, 18, 8, 26, 14, 32, 20][i % 7]}px"></i>`).join("")}</div><div class="playback" role="status">${esc(playback || (autoHint ? "Your voice leads. After a pause, you’ll hear a short reminder." : "Your voice leads. Ask for a hint when you need one."))}</div></div><div class="speaking-controls">${button("hint", "Hint <kbd>H</kbd>", "primary", busy || cueBusy || !listening() || !focusId)}${button("next", "Next idea <span>→</span>", "secondary", busy || cueBusy || !listening())}${button("more", "More detail", "text", busy || cueBusy || !listening() || !delivered?.cardId)}</div><div class="auto-hint-line"><button type="button" data-action="autohint" class="text" role="switch" aria-checked="${autoHint}" ${busy ? "disabled" : ""}>${autoHint ? "Turn off auto hint" : "Turn on auto hint"}</button><span role="status">${esc(autoLabel())}</span></div><div class="next-preview"><span>UP NEXT</span><strong>${esc(next?.card?.title || "End of your outline")}</strong><small>Moves on automatically when this idea is covered. Use Next idea to skip ahead.</small></div>${health?.voice.simulated ? `<form id="practice-form" class="practice-input"><label for="practice">Practice speech <span>SIMULATED INPUT · no microphone</span></label><div><input id="practice" name="speech" placeholder="Type what you would say…" required maxlength="3000" ${paused ? "disabled" : ""}><button class="secondary" ${paused || busy ? "disabled" : ""}>Send</button></div><p>Hints use approved text. Audio, if enabled, is a placeholder tone.</p></form>` : ""}<div class="lifecycle-controls">${button(paused ? "resume" : "pause", paused ? "▶ Resume" : "Ⅱ Pause", "secondary", busy || transportStopped)}${button("end", "End session", "text danger", busy)}${button("stop-audio", "Stop hint audio", "text", !listening())}</div></section><aside class="outline-panel"><div class="section-heading"><h2>Your thread</h2><span>${covered}/${cards.length}</span></div><div class="progress"><span style="width:${cards.length ? (covered / cards.length) * 100 : 0}%"></span></div><p class="fine">Select an idea to revisit it. Coverage follows what you say.</p><ol>${ordered()
     .map((c, i) => {
       const status = state?.coverage[c.id]?.status || "uncovered";
       return `<li><button data-action="select:${c.id}" class="outline-choice ${focusId === c.id ? "active" : ""}" aria-pressed="${focusId === c.id}" ${busy || !listening() ? "disabled" : ""}><span class="coverage-dot ${status}">${status === "covered" ? "✓" : i + 1}</span><span><strong>${esc(c.title)}</strong><small>${status === "covered" ? "Covered" : status === "partial" ? "In progress" : c.mustMention ? "Must mention" : "Not covered yet"}</small></span></button></li>`;
@@ -172,7 +181,7 @@ function speakingView() {
 }
 function recapView() {
   const missed = cards.filter((c) => recap?.missedMustMention.includes(c.id));
-  return `${intro("SESSION COMPLETE", "Your words.<br>Your progress.", "Take a moment to see what you shared and what you might revisit.")}<div class="recap-stats"><div><strong>${recap?.covered.length || 0}<small> / ${cards.length}</small></strong><span>Ideas covered</span></div><div><strong>${recap?.cueRequests || 0}</strong><span>Hints requested</span></div><div><strong>${formatTime(recap?.durationMs || 0)}</strong><span>Speaking time</span></div></div><section class="recap-card"><h2>${missed.length ? "Keep these close next time" : "Your essential ideas are covered"}</h2><p>${missed.length ? "These must-mention ideas weren’t fully covered." : "You reached each must-mention point in this session."}</p>${missed.map((c) => `<div class="recap-item"><strong>${esc(c.title)}</strong><span>${esc(c.cue)}</span></div>`).join("")}${health?.coverage === "mock" ? '<p class="provider-note">Practice results use simulated word matching, not verified semantic understanding.</p>' : ""}<div class="recap-actions">${button("again", "Prepare another round →", "primary")}<span>Your outline stays available. Session transcript buffers are cleared.</span></div></section>`;
+  return `${intro("SESSION COMPLETE", "Your words.<br>Your progress.", "Take a moment to see what you shared and what you might revisit.")}<div class="recap-stats"><div><strong>${recap?.covered.length || 0}<small> / ${cards.length}</small></strong><span>Ideas covered</span></div><div><strong>${recap?.cueRequests || 0}</strong><span>Hints requested${recap?.autoHints ? ` · ${recap.autoHints} automatic` : ""}</span></div><div><strong>${formatTime(recap?.durationMs || 0)}</strong><span>Speaking time</span></div></div><section class="recap-card"><h2>${missed.length ? "Keep these close next time" : "Your essential ideas are covered"}</h2><p>${missed.length ? "These must-mention ideas weren’t fully covered." : "You reached each must-mention point in this session."}</p>${missed.map((c) => `<div class="recap-item"><strong>${esc(c.title)}</strong><span>${esc(c.cue)}</span></div>`).join("")}${health?.coverage === "mock" ? '<p class="provider-note">Practice results use simulated word matching, not verified semantic understanding.</p>' : ""}<div class="recap-actions">${button("again", "Prepare another round →", "primary")}<span>Your outline stays available. Session transcript buffers are cleared.</span></div></section>`;
 }
 function render(focus = false) {
   const active = document.activeElement as HTMLElement | null;
@@ -205,6 +214,12 @@ function makeVoice() {
     simulated: !!health?.voice.simulated,
     maxGapWaitMs: 2000,
   });
+  voice.setAutoHint(autoHint);
+  voice.on("autoHintStatus", (status) => {
+    autoStatus = status;
+    render();
+  });
+  voice.on("autoHint", (trigger) => void autoCue(trigger));
   voice.on("error", (msg) => {
     error = msg + " Your text hint remains available.";
     render();
@@ -255,7 +270,7 @@ function subscribe(id: string) {
     }
   };
 }
-async function cue(level: "short" | "expanded", explicitId?: string) {
+async function cue(level: "short" | "expanded", explicitId?: string, auto?: { at: number }) {
   if (!listening() || busy || cueBusy) return;
   error = "";
   cancel();
@@ -274,7 +289,7 @@ async function cue(level: "short" | "expanded", explicitId?: string) {
       hint = "";
       render();
     }
-    const result = await sessionApi<CueResponse>("cue", { level });
+    const result = await sessionApi<CueResponse>("cue", auto ? { level, source: "auto" } : { level });
     if (
       token !== intent ||
       state?.id !== id ||
@@ -287,9 +302,14 @@ async function cue(level: "short" | "expanded", explicitId?: string) {
     message = "";
     if (result.cardId) focusId = result.cardId;
     render();
-    if (audioEnabled && result.cardId) void voice?.playCue(result).catch(fail);
+    if (audioEnabled && result.cardId)
+      void voice?.playCue(result, auto ? { auto: true, triggeredAt: auto.at } : {}).catch(fail);
+    else if (result.cardId) voice?.markHintShown();
   } catch (e) {
-    if (token === intent) {
+    if (token === intent && auto) {
+      // The server declined an automatic hint (tracking unsure, cooldown): quiet status, no banner.
+      playback = e instanceof Error ? e.message : String(e);
+    } else if (token === intent) {
       const c = cards.find(
         (c) => c.id === (level === "expanded" ? delivered?.cardId : focusId),
       );
@@ -302,6 +322,20 @@ async function cue(level: "short" | "expanded", explicitId?: string) {
     if (token === intent) cueBusy = false;
     render();
   }
+}
+// A pause was long enough. Hint the current idea; if it's already covered, move forward
+// like Next idea. Manual actions in progress win, and nothing plays past the outline's end.
+async function autoCue(trigger: { at: number }) {
+  if (!autoHint || !listening() || busy || cueBusy || !state) return;
+  const target =
+    focusId && state.coverage[focusId]?.status !== "covered" ? focusId : nextIdea(state, focusId).card?.id;
+  if (!target) {
+    playback = state.allCovered ? "All points covered." : "End of outline — earlier ideas remain.";
+    voice?.markHintShown();
+    render();
+    return;
+  }
+  await cue("short", target, trigger);
 }
 async function select(id: string) {
   cancel();
@@ -348,6 +382,12 @@ async function run(action: string) {
   }
   if (action === "more") {
     await cue("expanded");
+    return;
+  }
+  if (action === "autohint") {
+    autoHint = !autoHint;
+    voice?.setAutoHint(autoHint);
+    render();
     return;
   }
   if (action === "next") {
@@ -464,6 +504,7 @@ async function run(action: string) {
       focusId = null;
       transportStopped = false;
       previewed = false;
+      autoHint = false;
     } else if (action.startsWith("select:")) await select(action.slice(7));
     else if (action === "stop-audio") {
       cancel();
@@ -600,6 +641,11 @@ document.addEventListener("change", (e) => {
   if (el.id === "audio") {
     audioEnabled = el.checked;
     previewed = false;
+    render();
+  }
+  if (el.id === "autohint") {
+    autoHint = el.checked;
+    voice?.setAutoHint(autoHint);
     render();
   }
   if (el.id === "heard") {
