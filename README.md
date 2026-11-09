@@ -260,6 +260,26 @@ Use a live speaker and live tracking. Keep a recorded backup clearly labeled as 
 - Clear application session buffers at End; this does not imply deletion from provider systems.
 - Keep logs free of raw audio, secrets, and full transcripts by default.
 
+## Repository layout
+
+```text
+src/
+  shared/types.ts      Shared data contracts (Nathan, coordinated)
+  server/              Node backend (Nathan)
+    index.ts           Entry point: reads .env, picks providers, starts the server
+    app.ts             HTTP routes for sessions, cues, coverage, and SSE events
+    session.ts         Session state, lifecycle, and outline validation
+    cue.ts             Deterministic cue selection
+    coverage/          Coverage adapters: claude (semantic) and mock (SIMULATED)
+    outline/           Slide/doc import → draft idea cards: extraction, claude + mock generators, route
+    voice/             Server side of voice: ElevenLabs/mock providers, cue-audio cache, routes (Vineet)
+    fixtures/          Demo outline and the fixture runner (npm run demo:fixtures)
+  voice/               Browser voice module (Vineet): mic, VAD, echo handling, controller, /voice-demo/
+  ui/                  Speaker frontend (Ali): app, view model, styles, static routes
+test/                  node:test suites: session, voice, ui, outline
+docs/                  API, voice, and UI integration notes; docs/roles/ holds each owner's brief
+```
+
 ## Getting started
 
 Requires Node.js 22+.
