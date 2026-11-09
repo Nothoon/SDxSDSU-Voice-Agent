@@ -141,3 +141,13 @@ Opt-in, off by default for each session. Spec: [docs/features/auto-hint-next-ide
 - A real microphone, room noise and an earbud. VAD thresholds and the 3.5 s pause need rehearsal.
 - Whether echo from cue audio played through speakers (not an earbud) can count as speaker speech.
 - Next Idea's double-activation and held-key cases in a real browser. The UI already ignores key repeats and blocks input while a cue is busy.
+
+## Announce next idea
+
+Opt-in, off by default, with its own switch next to Auto hint. When tracking marks the current idea covered and the UI's focus moves forward (`focusAfterCoverage`), the controller speaks the next card's approved **title** with `announceIdea(cardId, title, stateRevision)`. Manual selections and Next Idea don't trigger it; Next Idea already plays the destination's hint.
+
+- **Audio:** `GET /cue-audio?level=title`. Titles are prepared after approval along with short and expanded cues.
+- **Same playback rules as cues:** no overlap, stale revisions ignored, it waits up to 2 s for a speech gap and drops the announcement if you keep talking, and speaking again stops it.
+- **Counts as a reminder:** Auto Hint needs new speech before its next hint, so the two don't stack on one pause.
+- **Verified:** in headless Chromium with live ElevenLabs and OpenAI coverage, after the spoken Problem sentence was covered, "Personal story" played, and repeating Problem didn't re-announce. A unit test checks that title audio comes from `card.title`.
+- **Not verified:** whether announcing as soon as an idea is covered feels natural with a real speaker. It may land as they start the next sentence, in which case the 2 s gap wait drops it.

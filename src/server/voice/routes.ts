@@ -19,7 +19,9 @@ export function voiceRoutes(get: (id: string) => Session, provider: VoiceProvide
     if (!state.outlineApproved) throw new SessionError("Approve the outline before preparing cue audio", 409);
     const card = state.outline.find((c) => c.id === cardId);
     if (!card) throw new SessionError(`Unknown card ${cardId}`, 404);
-    if (level !== "short" && level !== "expanded") throw new SessionError("level must be short or expanded");
+    // "title" is spoken when the speaker finishes an idea and Thread announces the next one.
+    if (level === "title") return card.title;
+    if (level !== "short" && level !== "expanded") throw new SessionError("level must be short, expanded, or title");
     return level === "short" ? card.cue : card.expandedCue;
   };
 
@@ -56,6 +58,7 @@ export function voiceRoutes(get: (id: string) => Session, provider: VoiceProvide
       const jobs = outline.flatMap((card: IdeaCard) => [
         { cardId: card.id, level: "short", text: cardText(session, card.id, "short") },
         { cardId: card.id, level: "expanded", text: cardText(session, card.id, "expanded") },
+        { cardId: card.id, level: "title", text: cardText(session, card.id, "title") },
       ]);
       const failed: Array<{ cardId: string; level: string; error: string }> = [];
       for (let i = 0; i < jobs.length; i += 3) {

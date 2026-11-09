@@ -58,6 +58,9 @@ export interface VoiceController {
   // Tell the scheduler a hint was shown without audio, so silence doesn't trigger another.
   markHintShown(): void;
   stopPlayback(): void;
+  // Speaks an idea's approved title when Thread moves on to it ("Announce next idea").
+  // Same no-overlap, speech-gap, and interruption rules as playCue.
+  announceIdea(cardId: string, title: string, stateRevision: number): Promise<PlaybackStopReason>;
   // Plays a fixed phrase to check earbud routing and volume.
   preview(): Promise<PlaybackStopReason>;
   listOutputDevices(): Promise<MediaDeviceInfo[]>;

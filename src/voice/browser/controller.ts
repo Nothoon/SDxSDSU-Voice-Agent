@@ -403,6 +403,25 @@ export class ThreadVoiceController implements VoiceController {
     return this.runJob(cue, url, !!options.auto);
   }
 
+  async announceIdea(cardId: string, title: string, stateRevision: number): Promise<PlaybackStopReason> {
+    const cue: CueResponse = {
+      requestId: `announce-${cardId}-${stateRevision}`,
+      cardId,
+      level: "short",
+      text: title,
+      stateRevision,
+      source: "auto",
+    };
+    if (stateRevision <= this.lastRevision) return this.report(cue, "stale");
+    this.lastRevision = stateRevision;
+    if (this.mode !== "listening" || !this.sessionId) return this.report(cue, "not-listening");
+    this.markHintShown(); // An announcement is a reminder: Auto Hint needs new speech before the next one.
+    const url =
+      `${this.api}/api/sessions/${this.sessionId}/voice/cue-audio?cardId=${encodeURIComponent(cardId)}` +
+      `&level=title&v=${hash(title)}`;
+    return this.runJob(cue, url);
+  }
+
   async preview(): Promise<PlaybackStopReason> {
     if (this.mode === "paused") return "not-listening";
     const cue: CueResponse = {

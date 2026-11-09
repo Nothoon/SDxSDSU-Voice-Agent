@@ -158,7 +158,7 @@ test("prepare synthesizes every approved cue; STT token needs a live provider", 
     assert.equal((await post(`${base}/api/sessions/${s.id}/voice/stt-token`)).status, 409, "not approved yet");
     await post(`${base}/api/sessions/${s.id}/approve`);
     const prep = await (await post(`${base}/api/sessions/${s.id}/voice/prepare`)).json();
-    assert.deepEqual(prep, { prepared: demoOutline.length * 2, failed: [], simulated: true });
+    assert.deepEqual(prep, { prepared: demoOutline.length * 3, failed: [], simulated: true });
 
     const token = await post(`${base}/api/sessions/${s.id}/voice/stt-token`);
     assert.equal(token.status, 503);
@@ -166,5 +166,22 @@ test("prepare synthesizes every approved cue; STT token needs a live provider", 
 
     const health = await (await fetch(`${base}/api/health`)).json();
     assert.deepEqual(health.voice, { provider: "mock", simulated: true, stt: false });
+  });
+});
+
+test("next-idea announcements speak the approved card title", async () => {
+  await withServer(async (base, voice) => {
+    const s = await (await post(`${base}/api/sessions`, { outline: demoOutline })).json();
+    await post(`${base}/api/sessions/${s.id}/approve`);
+    const res = await fetch(`${base}/api/sessions/${s.id}/voice/cue-audio?cardId=story&level=title`);
+    assert.equal(res.status, 200);
+    assert.equal(voice.synthesizeCalls, 1);
+    // Same text through the prepare path is a cache hit, so it was synthesized from card.title.
+    const synthesized: string[] = [];
+    const original = voice.synthesize.bind(voice);
+    voice.synthesize = async (text: string) => (synthesized.push(text), original(text));
+    await post(`${base}/api/sessions/${s.id}/voice/prepare`);
+    assert.ok(!synthesized.includes("Personal story"), "title audio was already cached from card.title");
+    assert.ok(synthesized.includes("Problem"));
   });
 });
